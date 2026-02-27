@@ -24,7 +24,7 @@ def sample_session_duration(role):
     elif role == "power_user":
         return np.random.randint(60, 180)
     else:  # admin
-        return np.random.randint(45, 240)
+        return np.random.randint(90, 180)
 
 for _, user in users_df.iterrows():
     user_id = user["user_id"]
