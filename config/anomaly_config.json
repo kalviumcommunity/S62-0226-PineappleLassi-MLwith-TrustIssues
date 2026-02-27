@@ -1,0 +1,15 @@
+{
+  "rare_user_fraction": 0.05,
+
+  "admin_anomalies": {
+    "off_hours_admin": true,
+    "privilege_then_export": true
+  },
+
+  "user_anomalies": {
+    "bulk_export": true
+  },
+
+  "time_window_days": 7,
+  "severity": "low"
+}
