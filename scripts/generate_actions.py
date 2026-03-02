@@ -6,241 +6,243 @@ from datetime import timedelta
 np.random.seed(42)
 random.seed(42)
 
-users_df = pd.read_csv("users.csv")
-sessions_df = pd.read_csv("sessions.csv", parse_dates=["session_start", "session_end"])
-resources_df = pd.read_csv("resources.csv")
+users_df = pd.read_csv("users2.csv")
+sessions_df = pd.read_csv("sessions2.csv", parse_dates=["session_start", "session_end"])
+resources_df = pd.read_csv("resources2.csv")
 
-# Pre-group resources
-resources_by_dept = resources_df.groupby("owner_department")
-admin_resources = resources_df[resources_df["resource_type"] == "admin_only"]
+global_resources = resources_df[resources_df["access_scope"] == "global"]
 
 EVENT_ID = 0
 events = []
 
-def sample_event_count(role):
-    if role == "user":
-        return np.random.randint(5, 15)
+
+# ----------------------------
+# Event count depends on session length
+# ----------------------------
+def sample_event_count(role, duration_minutes):
+    base = {
+        "user": np.random.normal(8, 2),
+        "power_user": np.random.normal(12, 3),
+        "admin": np.random.normal(14, 4),
+    }[role]
+
+    scaled = base * (duration_minutes / 120)
+    return max(3, int(abs(scaled)))
+
+
+# ----------------------------
+# Resource Selection
+# ----------------------------
+def select_resource(user):
+    role = user["role"]
+    dept = user["department"]
+
+    if role == "admin":
+        probs = [0.45, 0.35, 0.20]
     elif role == "power_user":
-        return np.random.randint(8, 20)
+        probs = [0.65, 0.25, 0.10]
     else:
-        return np.random.randint(6, 25)
+        probs = [0.75, 0.15, 0.10]
+
+    choice = np.random.choice(["own", "cross", "global"], p=probs)
+
+    if choice == "own":
+        pool = resources_df[
+            (resources_df["owner_department"] == dept)
+            & (resources_df["access_scope"] != "global")
+        ]
+    elif choice == "cross":
+        pool = resources_df[
+            (resources_df["owner_department"] != dept)
+            & (resources_df["access_scope"] == "cross_department")
+        ]
+    else:
+        pool = global_resources
+
+    # 🔥 FILTER HERE
+    if role != "admin":
+        pool = pool[pool["resource_type"] != "admin_only"]
+
+    if len(pool) == 0:
+        pool = resources_df[resources_df["resource_type"] != "admin_only"]
+
+    return pool.sample(1).iloc[0]
+
 
 for _, session in sessions_df.iterrows():
-    user_id = session["user_id"]
+
+    user = users_df[users_df["user_id"] == session["user_id"]].iloc[0]
+
+    role = user["role"]
+    tenure = user["tenure_months"]
+    variability = user["behavior_variability_score"]
+    max_priv = user["privilege_level"]
+
     session_id = session["session_id"]
     start = session["session_start"]
     end = session["session_end"]
-    
-    user = users_df[users_df["user_id"] == user_id].iloc[0]
-    role = user["role"]
-    dept = user["department"]
-    
-    n_events = sample_event_count(role)
-    session_duration_minutes = int((end - start).total_seconds() / 60)
-    
-    event_offsets = sorted(
+
+    duration_minutes = int((end - start).total_seconds() / 60)
+
+    if duration_minutes <= 1:
+        continue
+
+    n_events = sample_event_count(role, duration_minutes)
+
+    offsets = sorted(
         np.random.choice(
-            range(1, session_duration_minutes),
-            size=n_events,
+            range(1, duration_minutes),
+            size=min(n_events, duration_minutes - 1),
             replace=False
         )
     )
 
-    event_times = [
-        start + timedelta(minutes=int(x)) for x in event_offsets
-    ]
+    for offset in offsets:
 
-    admin_action_budget = 0
-    admin_action_positions = set()
+        ts = start + timedelta(minutes=int(offset))
 
-    if role == "admin":
-        admin_action_budget = np.random.choice(
-            [0, 1, 2, 3],
-            p=[0.4, 0.3, 0.2, 0.1]
-        )
+        after_hours = ts.hour < 6 or ts.hour > 20
+        device = session["device_type"]
+        mfa_used = session["mfa_used"]
+        location = session["location"]
 
-        if admin_action_budget > 0:
-            admin_action_positions = set(
-                np.random.choice(
-                    range(n_events),
-                    size=admin_action_budget,
-                    replace=False
-                )
-            )
-    
-    for idx, ts in enumerate(event_times):
-        
-        # Event type logic
-        if role == "admin" and idx in admin_action_positions:
-            event_type = "admin_action"
+        resource = select_resource(user)
+
+        resource_type = resource["resource_type"]
+        sensitivity = resource["sensitivity_score"]
+        required_priv = resource["required_privilege_level"]
+        resource_size = resource["resource_size_mb"]
+        scope = resource["access_scope"]
+
+        # ----------------------------
+        # ACTION SELECTION
+        # ----------------------------
+
+        # Base export probability influenced by sensitivity (continuous)
+        export_base = 0.02 + (sensitivity * 0.08)
+
+        # Slight role influence (reduced determinism)
+        if role == "power_user":
+            export_base += 0.02
+        elif role == "admin":
+            export_base += 0.03
+
+        # Slight after-hours adjustment (small, not aggressive)
+        if after_hours:
+            export_base *= 0.9  # mild reduction only
+
+        export_base = np.clip(export_base, 0.01, 0.15)
+
+        if resource_type == "public":
+            action = np.random.choice(["read", "write"], p=[0.82, 0.18])
+
+        elif resource_type == "sensitive":
+
+            # Remaining probability after export
+            remaining = 1 - export_base
+
+            # Baseline read/write split (before export influence)
+            read_ratio = 0.75
+            write_ratio = 0.25
+
+            # Normalize read/write proportions
+            total_rw = read_ratio + write_ratio
+            read_prob = remaining * (read_ratio / total_rw)
+            write_prob = remaining * (write_ratio / total_rw)
+
+            probs = [read_prob, write_prob, export_base]
+
+            # Final safety normalization (avoid floating issues)
+            probs = np.array(probs)
+            probs = probs / probs.sum()
+
             action = np.random.choice(
-                ["config_change", "user_mgmt", "permission_change"]
+                ["read", "write", "export"],
+                p=probs
             )
-            resource = admin_resources.sample(1).iloc[0]
-            privilege_used = np.random.rand() < 0.9
-            if not privilege_used and np.random.rand() < 0.8:
-                continue
-            admin_command = action
-            
-        else:
-            event_type = random.choice(["file_access", "api_call"])
-            privilege_used = False
-            admin_command = None
-
-            # -------------------------
-            # NEW: session progress
-            # -------------------------
-            progress = idx / (n_events - 1) if n_events > 1 else 0
-
-            if event_type == "file_access":
-                resource_pool = resources_by_dept.get_group(dept)
-                resource = resource_pool.sample(1).iloc[0]
-
-                # -------------------------
-                # PHASE-AWARE ACTION LOGIC
-                # -------------------------
-
-                if resource["resource_type"] == "public":
-                    if role == "user":
-                        if progress < 0.3:        # early
-                            action = np.random.choice(["read", "write"], p=[0.85, 0.15])
-                        elif progress < 0.7:      # mid
-                            action = np.random.choice(
-                                ["read", "write", "export"],
-                                p=[0.70, 0.27, 0.03]
-                            )
-                        else:                     # late
-                            action = np.random.choice(
-                                ["read", "export"],
-                                p=[0.85, 0.15]
-                            )
-
-                    elif role == "power_user":
-                        if progress < 0.3:
-                            action = np.random.choice(["read", "write"], p=[0.75, 0.25])
-                        elif progress < 0.7:
-                            action = np.random.choice(
-                                ["read", "write", "export"],
-                                p=[0.65, 0.28, 0.07]
-                            )
-                        else:
-                            action = np.random.choice(
-                                ["read", "export"],
-                                p=[0.80, 0.20]
-                            )
-
-                    else:  # admin
-                        if progress < 0.3:
-                            action = np.random.choice(["read", "write"], p=[0.70, 0.30])
-                        elif progress < 0.7:
-                            action = np.random.choice(
-                                ["read", "write", "export"],
-                                p=[0.55, 0.30, 0.15]
-                            )
-                        else:
-                            action = np.random.choice(
-                                ["read", "export"],
-                                p=[0.75, 0.25]
-                            )
-
-                elif resource["resource_type"] == "sensitive":
-                    if role == "user":
-                        action = np.random.choice(
-                            ["read", "write", "export"],
-                            p=[0.85, 0.13, 0.02]
-                        )
-                    elif role == "power_user":
-                        action = np.random.choice(
-                            ["read", "write", "export"],
-                            p=[0.70, 0.25, 0.05]
-                        )
-                    else:  # admin
-                        action = np.random.choice(
-                            ["read", "write", "export"],
-                            p=[0.60, 0.30, 0.10]
-                        )
-
-                else:  # admin_only
-                    if role == "admin" and np.random.rand() < 0.2:
-                        action = "read"
-                    else:
-                        action = None
-            else:  # api_call
-                action = "api_call"
-
-                # -------------------------
-                # PHASE-AWARE API CALLS
-                # -------------------------
-                if progress < 0.3:
-                    # early: fewer API calls
-                    if np.random.rand() < 0.7:
-                        continue
-
-                if np.random.rand() < 0.8:
-                    resource_pool = resources_by_dept.get_group(dept)
-                else:
-                    resource_pool = resources_df
-
-                # Non-admins cannot access admin_only APIs
-                if role != "admin":
-                    resource_pool = resource_pool[
-                        resource_pool["resource_type"] != "admin_only"
-                    ]
-
-                resource = resource_pool.sample(1).iloc[0]
-
-        if action == None:
-            continue
-
-        if event_type == "api_call":
-            privilege_used = (role == "admin")
-
-
-
-        # Access success logic
-        # Determine access success probabilistically
-        if resource["resource_type"] == "public":
-            access_success = np.random.rand() > 0.01
-
-        elif resource["resource_type"] == "sensitive":
-            if role in ["power_user", "admin"]:
-                access_success = np.random.rand() > 0.05
-            else:
-                access_success = np.random.rand() > 0.30
 
         else:  # admin_only
-            if role == "admin" and privilege_used:
-                access_success = np.random.rand() > 0.05
-            else:
-                access_success = False
-        
-        # Data volume logic
+            if role != "admin":
+                continue
+            action = np.random.choice(["read", "config_change"], p=[0.7, 0.3])
+
+        # ----------------------------
+        # PRIVILEGE USED (no escalation)
+        # ----------------------------
+
+        privilege_used = min(required_priv, max_priv)
+
+        # Slight over-provision use (not escalation)
+        if np.random.rand() < (0.04 + variability * 0.03):
+            privilege_used = max_priv
+
+        # ----------------------------
+        # ACCESS SUCCESS
+        # ----------------------------
+
+        base_fail = 0.02
+
+        if scope == "cross_department":
+            base_fail += 0.03
+
+        if resource_type == "admin_only":
+            base_fail += 0.02
+
+        if tenure < 6:
+            base_fail += 0.02
+
+        if not mfa_used and resource_type != "public":
+            base_fail += 0.03
+
+        base_fail = np.clip(base_fail, 0.01, 0.15)
+
+        if privilege_used >= required_priv:
+            access_success = np.random.rand() > base_fail
+        else:
+            access_success = False
+
+        # ----------------------------
+        # DATA VOLUME (realistic)
+        # ----------------------------
+
         if not access_success:
             data_volume = 0
+
         elif action == "read":
-            data_volume = np.random.randint(1, 20)
+            data_volume = resource_size * np.random.uniform(0.01, 0.08)
 
         elif action == "write":
-            data_volume = np.random.randint(10, 50)
+            data_volume = resource_size * np.random.uniform(0.08, 0.35)
 
         elif action == "export":
-            if resource["resource_type"] == "sensitive":
-                data_volume = np.random.randint(200, 600)
-            else:
-                data_volume = np.random.randint(100, 300)
+            data_volume = resource_size * np.random.uniform(0.8, 1.05)
 
+        else:  # config_change
+            data_volume = np.random.uniform(1, 5)
+
+        data_volume = round(float(data_volume), 2)
+
+        # ----------------------------
+        # EVENT TYPE
+        # ----------------------------
+
+        if action == "config_change":
+            event_type = "admin_action"
+            admin_command = "config_change"
+        elif action == "export":
+            event_type = "file_export"
+            admin_command = None
         else:
-            data_volume = np.random.randint(1, 10)
-
-       
+            event_type = "file_access"
+            admin_command = None
 
         EVENT_ID += 1
         event_id = f"E{EVENT_ID:06d}"
-        
+
         events.append([
             event_id,
             session_id,
-            user_id,
+            user["user_id"],
             ts,
             event_type,
             action,
@@ -250,6 +252,7 @@ for _, session in sessions_df.iterrows():
             privilege_used,
             admin_command
         ])
+
 
 events_df = pd.DataFrame(events, columns=[
     "event_id",
@@ -262,8 +265,9 @@ events_df = pd.DataFrame(events, columns=[
     "data_volume_mb",
     "access_success",
     "privilege_used",
-    "admin_command_type"
+    "admin_command_type",
 ])
 
-# events_df.to_csv("events.csv", index=False)
-events_df.to_csv("events_base.csv", index=False)
+events_df.to_csv("events_base2.csv", index=False)
+
+print("events_base2.csv generated successfully.")
