@@ -133,6 +133,6 @@ resources_df = pd.DataFrame(resources, columns=[
     "access_scope"
 ])
 
-resources_df.to_csv("resources2.csv", index=False)
+resources_df.to_csv("resources.csv", index=False)
 
 print("resources.csv generated successfully.")

@@ -6,9 +6,9 @@ from datetime import timedelta
 np.random.seed(42)
 random.seed(42)
 
-users_df = pd.read_csv("users2.csv")
-sessions_df = pd.read_csv("sessions2.csv", parse_dates=["session_start", "session_end"])
-resources_df = pd.read_csv("resources2.csv")
+users_df = pd.read_csv("users.csv")
+sessions_df = pd.read_csv("sessions.csv", parse_dates=["session_start", "session_end"])
+resources_df = pd.read_csv("resources.csv")
 
 global_resources = resources_df[resources_df["access_scope"] == "global"]
 
@@ -62,9 +62,15 @@ def select_resource(user):
     # 🔥 FILTER HERE
     if role != "admin":
         pool = pool[pool["resource_type"] != "admin_only"]
+    
+    max_priv = user["privilege_level"]
+    pool = pool[pool["required_privilege_level"] <= max_priv]
 
     if len(pool) == 0:
-        pool = resources_df[resources_df["resource_type"] != "admin_only"]
+        pool = resources_df[
+            (resources_df["resource_type"] != "admin_only") &
+            (resources_df["required_privilege_level"] <= max_priv)
+        ]
 
     return pool.sample(1).iloc[0]
 
@@ -268,6 +274,6 @@ events_df = pd.DataFrame(events, columns=[
     "admin_command_type",
 ])
 
-events_df.to_csv("events_base2.csv", index=False)
+events_df.to_csv("events_base.csv", index=False)
 
 print("events_base2.csv generated successfully.")

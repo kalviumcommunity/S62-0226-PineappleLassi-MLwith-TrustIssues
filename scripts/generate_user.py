@@ -5,7 +5,7 @@ import random
 # np.random.seed(42)
 # random.seed(42)
 
-N_USERS = 20
+N_USERS = 100
 
 ROLES = ["user", "power_user", "admin"]
 ROLE_PROBS = [0.7, 0.2, 0.1]
@@ -116,6 +116,6 @@ users_df = pd.DataFrame(users, columns=[
     "behavior_variability_score"
 ])
 
-users_df.to_csv("users2.csv", index=False)
+users_df.to_csv("users.csv", index=False)
 
 print("users.csv generated successfully.")

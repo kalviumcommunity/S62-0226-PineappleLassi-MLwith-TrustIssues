@@ -7,7 +7,7 @@ np.random.seed(42)
 random.seed(42)
 
 # Load users
-users_df = pd.read_csv("users2.csv")
+users_df = pd.read_csv("users.csv")
 
 START_DATE = datetime(2025, 1, 1)
 END_DATE = datetime(2025, 2, 15)
@@ -214,6 +214,6 @@ sessions_df = pd.DataFrame(sessions, columns=[
     "failed_login_attempts"
 ])
 
-sessions_df.to_csv("sessions2.csv", index=False)
+sessions_df.to_csv("sessions.csv", index=False)
 
 print("sessions.csv generated successfully.")
