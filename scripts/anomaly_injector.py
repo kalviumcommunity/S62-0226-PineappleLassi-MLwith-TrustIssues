@@ -1,147 +1,197 @@
+# =========================
+# anomaly_session_generator.py
+# =========================
+
 import pandas as pd
-import json
 import numpy as np
-from datetime import timedelta
+import random
+from datetime import datetime, timedelta
+import os
 
-np.random.seed(42)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# -------------------------------
+
 # Load data
-# -------------------------------
-events = pd.read_csv("events_base.csv", parse_dates=["timestamp"])
-sessions = pd.read_csv("sessions.csv", parse_dates=["session_start", "session_end"])
-users = pd.read_csv("users.csv")
+users_df = pd.read_csv(os.path.join(BASE_DIR,"..", "data", "users.csv"))
+sessions_df = pd.read_csv(os.path.join(BASE_DIR,"..", "data", "sessions.csv"), parse_dates=["session_start", "session_end"])
+events_df = pd.read_csv(os.path.join(BASE_DIR,"..", "data", "events_base.csv"), parse_dates=["timestamp"])
+resources_df = pd.read_csv(os.path.join(BASE_DIR,"..", "data", "resources.csv"))
 
-with open("anomaly_config.json") as f:
-    config = json.load(f)
 
-# -------------------------------
-# Select rare users
-# -------------------------------
-n_users = users.shape[0]
-n_rare = max(1, int(n_users * config["rare_user_fraction"]))
+# =========================
+# Helper: Create new session
+# =========================
+def create_session(user):
 
-rare_users = np.random.choice(
-    users["user_id"],
-    size=n_rare,
-    replace=False
-)
+    session_id = f"S_ANOM_{random.randint(100000,999999)}"
 
-rare_admins = users[
-    (users["user_id"].isin(rare_users)) &
-    (users["role"] == "admin")
-]["user_id"].tolist()
+    base_date = datetime(2025, 2, 20)
 
-# Ensure at least one admin if admins exist
-admins = users[users["role"] == "admin"]["user_id"].tolist()
-if admins and not rare_admins:
-    rare_admins = [np.random.choice(admins)]
+    # force suspicious timing if needed
+    session_start = base_date.replace(hour=random.choice([1, 2, 3, 23]))
+    duration = random.randint(60, 180)
 
-# -------------------------------
-# Time window
-# -------------------------------
-max_time = events["timestamp"].max()
-window_start = max_time - timedelta(days=config["time_window_days"])
+    session_end = session_start + timedelta(minutes=duration)
 
-recent_mask = events["timestamp"] >= window_start
+    # 🔥 convert to string (CSV compatible)
+    session_start_str = session_start.strftime("%Y-%m-%d %H:%M:%S")
+    session_end_str = session_end.strftime("%Y-%m-%d %H:%M:%S")
 
-# ============================================================
-# ADMIN ANOMALY 1: OFF-HOURS ACTIVITY (SESSION-SAFE)
-# ============================================================
-if config["admin_anomalies"]["off_hours_admin"]:
-    for admin in rare_admins:
-        admin_sessions = sessions[(sessions["user_id"] == admin) & (sessions["session_end"] >= window_start)]
+    return {
+        "session_id": session_id,
+        "user_id": user["user_id"],
+        "session_start": session_start_str,
+        "session_end": session_end_str,
+        "device_type": "vpn",
+        "location": random.choice(["Germany", "Singapore"]),
+        "login_method": "password",
+        "mfa_used": False,
+        "failed_login_attempts": random.randint(2, 6)
+    }
 
-        if admin_sessions.empty:
-            continue
-        
-        # choose only a small number of sessions to modify
-        n_sessions = min(2, len(admin_sessions))  # LOW severity
-        selected_sessions = admin_sessions.sample(n_sessions, random_state=42)
 
-        for _, s in selected_sessions.iterrows():
-            if s["session_end"] < window_start:
-                continue
+# =========================
+# Event generator
+# =========================
+def generate_events(session, user, anomaly_type, n_events=20):
 
-            mask = (
-                (events["session_id"] == s["session_id"]) &
-                (events["user_id"] == admin)
-            )
+    events = []
 
-            if mask.sum() == 0:
-                continue
+    for i in range(n_events):
 
-            night_hour = np.random.randint(1, 4)
-            shift = timedelta(hours=night_hour - s["session_start"].hour)
+        start_dt = pd.to_datetime(session["session_start"])
+        ts = start_dt + timedelta(minutes=i)
 
-            new_times = events.loc[mask, "timestamp"] + shift
+        ts_str = ts.strftime("%Y-%m-%d %H:%M:%S")
 
-            # Clamp to session bounds
-            upper_bound = s["session_end"] - timedelta(minutes=1)
+        # ----------------------------
+        # Default normal resource
+        # ----------------------------
+        resource = resources_df.sample(1).iloc[0]
 
-            events.loc[mask, "timestamp"] = new_times.where(
-                new_times <= upper_bound,
-                upper_bound
-            )
+        # =========================
+        # Apply anomaly
+        # =========================
 
-# ============================================================
-# ADMIN ANOMALY 2: PRIVILEGE → EXPORT SEQUENCE (ORDER-SAFE)
-# ============================================================
-if config["admin_anomalies"]["privilege_then_export"]:
-    admin_sessions = events[
-        events["user_id"].isin(rare_admins)
-    ]["session_id"].unique()
+        if anomaly_type == "privilege_escalation":
+            resource = resources_df[
+                resources_df["required_privilege_level"] > user["privilege_level"]
+            ].sample(1).iloc[0]
 
-    for s_id in admin_sessions:
-        session_events = events[events["session_id"] == s_id]
+            access_success = True
 
-        admin_actions = session_events[
-            session_events["event_type"] == "admin_action"
-        ]
+        elif anomaly_type == "data_exfiltration":
+            resource = resources_df[
+                resources_df["resource_type"] == "sensitive"
+            ].sample(1).iloc[0]
 
-        if admin_actions.empty:
-            continue
+            access_success = True
 
-        last_admin_idx = admin_actions.index[-1]
+        elif anomaly_type == "cross_department_abuse":
+            resource = resources_df[
+                resources_df["owner_department"] != user["department"]
+            ].sample(1).iloc[0]
 
-        later_events = session_events[
-            session_events.index > last_admin_idx
-        ]
+            access_success = True
 
-        if later_events.empty:
-            continue
+        else:
+            access_success = True
 
-        idx = later_events.index[0]
+        # =========================
+        # Action selection
+        # =========================
 
-        events.loc[idx, "event_type"] = "file_access"
-        events.loc[idx, "action"] = "export"
-        events.loc[idx, "data_volume_mb"] = np.random.randint(400, 700)
+        if anomaly_type == "data_exfiltration":
+            action = "export"
+            event_type = "file_export"
+            data_volume = resource["resource_size_mb"] * random.uniform(1.0, 2.5)
 
-# ============================================================
-# USER ANOMALY: ONE-TIME BULK EXPORT
-# ============================================================
-if config["user_anomalies"]["bulk_export"]:
-    normal_users = users[
-        (users["user_id"].isin(rare_users)) &
-        (users["role"] == "user")
-    ]["user_id"]
+        elif anomaly_type == "burst_activity":
+            action = "read"
+            event_type = "file_access"
+            data_volume = resource["resource_size_mb"] * 0.1
 
-    for u in normal_users:
-        user_events = events[
-            (events["user_id"] == u) &
-            recent_mask
-        ]
+        elif anomaly_type == "off_hours_admin":
+            action = "config_change"
+            event_type = "admin_action"
+            data_volume = random.uniform(1, 5)
 
-        if user_events.empty:
-            continue
+        else:
+            action = "read"
+            event_type = "file_access"
+            data_volume = resource["resource_size_mb"] * 0.2
 
-        idx = user_events.sample(1).index[0]
+        event = {
+            "event_id": f"E_ANOM_{random.randint(100000,999999)}",
+            "session_id": session["session_id"],
+            "user_id": user["user_id"],
+            "timestamp": ts_str,
+            "event_type": event_type,
+            "action": action,
+            "resource_id": resource["resource_id"],
+            "data_volume_mb": round(data_volume, 2),
+            "access_success": access_success,
+            "privilege_used": user["privilege_level"] + 1,
+            "admin_command_type": "config_change" if event_type == "admin_action" else None
+        }
 
-        events.loc[idx, "event_type"] = "file_access"
-        events.loc[idx, "action"] = "export"
-        events.loc[idx, "data_volume_mb"] = np.random.randint(300, 600)
+        events.append(event)
 
-# -------------------------------
-# Save final data
-# -------------------------------
-events.to_csv("events.csv", index=False)
+    return pd.DataFrame(events)
+
+
+# =========================
+# Main generator
+# =========================
+def generate_anomalous_session(user_id=None, anomaly_type="data_exfiltration"):
+
+    if user_id:
+        user = users_df[users_df["user_id"] == user_id].iloc[0]
+    else:
+        user = users_df.sample(1).iloc[0]
+
+    print(f"\n🚨 Generating {anomaly_type} for user {user['user_id']}")
+
+    session = create_session(user)
+    events = generate_events(session, user, anomaly_type)
+
+    return session, events
+
+
+def save_generated_data(session, events):
+    # Paths
+    sessions_path = os.path.join(BASE_DIR, "..", "data", "sessions.csv")
+    events_path = os.path.join(BASE_DIR, "..", "data", "events_base.csv")
+
+    # Convert session dict to DataFrame
+    session_df = pd.DataFrame([session])
+
+    # Append session
+    if os.path.exists(sessions_path):
+        session_df.to_csv(sessions_path, mode='a', header=False, index=False)
+    else:
+        session_df.to_csv(sessions_path, index=False)
+
+    # Append events
+    if os.path.exists(events_path):
+        events.to_csv(events_path, mode='a', header=False, index=False)
+    else:
+        events.to_csv(events_path, index=False)
+
+
+# =========================
+# Run example
+# =========================
+if __name__ == "__main__":
+
+    session, events = generate_anomalous_session(
+        anomaly_type="data_exfiltration"
+    )
+
+    save_generated_data(session, events)
+
+    print("\nGenerated Session:")
+    print(session)
+
+    print("\nGenerated Events:")
+    print(events.head())
