@@ -15,6 +15,10 @@ scalar = joblib.load(os.path.join(BASE_DIR, "..", "outputs", "artifacts", "scala
 
 global_if = joblib.load(os.path.join(BASE_DIR, "..", "outputs", "models", "global_iforest.pkl"))
 
+FEATURE_COLUMNS = scalar.feature_names_in_
+NUMERIC_COLUMNS = scalar.feature_names_in_
+CATEGORICAL_COLUMNS = encoder.feature_names_in_
+
 
 def load_role_models(role):
     role_if = joblib.load(os.path.join(BASE_DIR, "..", "outputs", "models", "role_iforest", f"{role}_iforest.pkl"))
@@ -25,19 +29,31 @@ def load_role_models(role):
 
 
 def compute_score(features_df, role, events):
+    
+    # 🧠 Work on a copy (fix warning too)
+    df = features_df.copy()
 
-    X = features_df.copy()
+    # ✅ Select only required columns
+    X_num = df[NUMERIC_COLUMNS]
+    X_cat = df[CATEGORICAL_COLUMNS]
 
-    # Preprocess
-    numeric_cols = features_df.select_dtypes(include = np.number).columns.tolist()
-    categorical_cols = features_df.select_dtypes(exclude = np.number).columns.tolist()
-    X[numeric_cols] = scalar.transform(features_df[numeric_cols])
+    # ✅ Scale numeric
+    X_num_scaled = scalar.transform(X_num)
 
-    encoded = encoder.transform(features_df[categorical_cols])
-    encoded_df = pd.DataFrame(encoded, columns=encoder.get_feature_names_out(categorical_cols), index=X.index)
+    # ✅ Encode categorical
+    encoded = encoder.transform(X_cat)
+    encoded_df = pd.DataFrame(
+        encoded,
+        columns=encoder.get_feature_names_out(CATEGORICAL_COLUMNS),
+        index=df.index
+    )
 
-    X = X.drop(columns=categorical_cols)
-    X = pd.concat([X, encoded_df], axis=1)
+    # ✅ Combine
+    X = pd.concat(
+        [pd.DataFrame(X_num_scaled, columns=NUMERIC_COLUMNS, index=df.index), encoded_df],
+        axis=1
+    )
+
 
 
     # Dropping role column for role based models
