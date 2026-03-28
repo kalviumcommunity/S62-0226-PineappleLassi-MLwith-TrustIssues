@@ -7,6 +7,7 @@ import Users from "./pages/Users"
 import UserIntelligence from "./pages/UserIntelligence"
 import Intelligence from "./pages/Intelligence"
 import Alerts from "./pages/Alerts"
+import AttackLab from "./pages/AttackLab"
 
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
           <Route path="/users/:id" element={<UserIntelligence />} />
           <Route path="/intelligence" element={<Intelligence />} />
           <Route path="/alerts" element={<Alerts />} />
+          <Route path="/simulation" element={<AttackLab />} />
         </Route>
       </Routes>
     </BrowserRouter>

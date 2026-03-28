@@ -9,7 +9,7 @@ function AlertCard({ alert}) {
   }
 
   return (
-    <div className={`border-l-4 rounded-xl p-5 mb-4 shadow ${severityStyles[alert.severity]}`}>
+    <div className={`border-l-4 rounded-xl p-5 mb-4 shadow ${severityStyles[alert.severity] || severityStyles.low}`}>
 
       <div className="flex justify-between items-center mb-2">
 
