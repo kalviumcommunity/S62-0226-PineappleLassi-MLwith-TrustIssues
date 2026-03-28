@@ -65,3 +65,30 @@ export async function injectAttack(user_id, anomaly_type) {
     return null
   }
 }
+
+export async function fetchAnalytics() {
+  try {
+    const res = await fetch("http://localhost:8000/api/v1/sessions/analytics")
+
+    if (!res.ok) throw new Error("Failed to fetch analytics")
+
+    return await res.json()
+  } catch (err) {
+    console.error("Error fetching analytics:", err)
+    return null
+  }
+}
+
+
+export async function fetchUserIntelligence(userId) {
+  try {
+    const res = await fetch(`http://localhost:8000/api/v1/intelligence/${userId}`)
+
+    if (!res.ok) throw new Error("Failed to fetch intelligence")
+
+    return await res.json()
+  } catch (err) {
+    console.error(err)
+    return null
+  }
+}

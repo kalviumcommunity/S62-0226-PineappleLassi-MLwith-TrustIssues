@@ -1,13 +1,6 @@
 import { useEffect, useState } from "react"
 
-import { fetchSessions, fetchUsers } from "../services/api"
-
-import { sessionsMock } from "../services/sessionsMock"
-import { eventsMock } from "../services/eventsMock"
-
-import {
-  generateDeviceRisk
-} from "../services/intelligenceEngine"
+import { fetchAnalytics, fetchSessions } from "../services/api"
 
 import RiskTrendChart from "../charts/RiskTrendChart"
 import DeviceChart from "../charts/DeviceChart"
@@ -15,63 +8,72 @@ import DepartmentHeatmap from "../charts/Heatmap"
 
 function Analytics() {
 
+  const [analytics, setAnalytics] = useState(null)
   const [sessions, setSessions] = useState([])
-  const [users, setUsers] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchSessions().then(setSessions)
-    fetchUsers().then(setUsers)
+    Promise.all([
+      fetchAnalytics(),
+      fetchSessions()
+    ]).then(([analyticsData, sessionsData]) => {
+      setAnalytics(analyticsData)
+      setSessions(sessionsData)
+      setLoading(false)
+    })
   }, [])
 
-  // 🔥 REAL: Risk Trend (from sessions)
-  const riskTrendMap = {}
+  if (loading) {
+    return <div className="p-8">Loading analytics...</div>
+  }
 
-  sessions.forEach(s => {
+  if (!analytics) {
+    return <div className="p-8 text-red-500">Failed to load analytics</div>
+  }
 
-    const day =
-      new Date(s.timestamp).toLocaleDateString()
+  // -----------------------------------
+  // ✅ 1. RISK TREND (FORCE ISO DATE)
+  // -----------------------------------
+  const riskTrendData = analytics.risk_over_time.map(r => ({
+    day: new Date(r.day).toISOString().split("T")[0], // ISO: YYYY-MM-DD
+    risk: r.risk
+  }))
 
-    if (!riskTrendMap[day]) riskTrendMap[day] = 0
+  // -----------------------------------
+  // ✅ 2. DEVICE RISK (BACKEND OR FALLBACK)
+  // -----------------------------------
+  let deviceData = []
 
-    riskTrendMap[day] += Math.abs(s.risk_score)
-  })
-
-  const riskTrendData =
-    Object.keys(riskTrendMap).map(d => ({
-      day: d,
-      risk: Number(riskTrendMap[d].toFixed(1))
+  if (analytics.device_risk && analytics.device_risk.length > 0) {
+    // ✅ Use backend data
+    deviceData = analytics.device_risk.map(d => ({
+      name: d.device_type,
+      value: d.count
     }))
+  } else {
+    // 🔥 Fallback → derive from REAL sessions (NOT mock)
+    const deviceMap = {}
 
+    sessions.forEach(s => {
+      const device = s.device_type || "Unknown"
 
-  // 🔥 MOCK: Device Risk (keep for now)
-  const deviceRiskData =
-    generateDeviceRisk(sessionsMock, eventsMock)
+      if (!deviceMap[device]) deviceMap[device] = 0
+      deviceMap[device] += 1
+    })
 
-
-  // 🔥 REAL: Department Risk (users + sessions)
-  const userDeptMap = {}
-
-  users.forEach(u => {
-    userDeptMap[u.user_id] = u.department
-  })
-
-  const deptMap = {}
-
-  sessions.forEach(s => {
-
-    const dept = userDeptMap[s.user_id] || "Unknown"
-
-    if (!deptMap[dept]) deptMap[dept] = 0
-
-    deptMap[dept] += Math.abs(s.risk_score)
-  })
-
-  const deptRiskData =
-    Object.keys(deptMap).map(d => ({
+    deviceData = Object.keys(deviceMap).map(d => ({
       name: d,
-      risk: Number(deptMap[d].toFixed(1))
+      value: deviceMap[d]
     }))
+  }
 
+  // -----------------------------------
+  // ✅ 3. DEPARTMENT RISK (FORMAT FIX)
+  // -----------------------------------
+  const deptData = analytics.department_risk.map(d => ({
+    name: d.department,
+    risk: d.score
+  }))
 
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
@@ -83,7 +85,6 @@ function Analytics() {
       {/* ROW 1 */}
       <div className="grid grid-cols-2 gap-8 mb-8">
 
-        {/* ✅ REAL */}
         <div className="bg-white rounded-2xl p-6 shadow">
           <h2 className="font-semibold text-slate-600 mb-4">
             Organizational Risk Trend
@@ -91,17 +92,18 @@ function Analytics() {
           <RiskTrendChart data={riskTrendData} />
         </div>
 
-        {/* ⚠️ MOCK (kept intentionally) */}
         <div className="bg-white rounded-2xl p-6 shadow">
           <h2 className="font-semibold text-slate-600 mb-4">
             Device Risk Distribution
           </h2>
 
-          <div className="text-xs text-orange-400 mb-2">
-            Using mock data (backend not integrated)
-          </div>
+          {deviceData.length === 0 && (
+            <div className="text-xs text-red-400 mb-2">
+              No device data available
+            </div>
+          )}
 
-          <DeviceChart data={deviceRiskData} />
+          <DeviceChart data={deviceData} />
         </div>
 
       </div>
@@ -111,7 +113,7 @@ function Analytics() {
         <h2 className="font-semibold text-slate-600 mb-4">
           Department Risk Heatmap
         </h2>
-        <DepartmentHeatmap data={deptRiskData} />
+        <DepartmentHeatmap data={deptData} />
       </div>
 
     </div>
