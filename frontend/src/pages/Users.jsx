@@ -1,47 +1,90 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { usersMock } from "../services/usersMock"
-import { eventsMock } from "../services/eventsMock"
-import { sessionsMock } from "../services/sessionsMock"
-
-import { generateUserInvestigationRows } from "../services/intelligenceEngine"
+import { fetchSessions, fetchUsers } from "../services/api"
 
 function Users() {
 
+  const [sessions, setSessions] = useState([])
+  const [users, setUsers] = useState([])
   const [search, setSearch] = useState("")
   const [riskFilter, setRiskFilter] = useState("")
-  const [remoteFilter, setRemoteFilter] = useState("")
-  const [privFilter, setPrivFilter] = useState("")
-  const [noticeFilter, setNoticeFilter] = useState("")
 
-  let rows =
-    generateUserInvestigationRows(
-      usersMock,
-      eventsMock,
-      sessionsMock
-    )
+  const navigate = useNavigate()
 
-  // SEARCH
+  useEffect(() => {
+    fetchSessions().then(setSessions)
+    fetchUsers().then(setUsers)
+  }, [])
+
+  // 🔥 GROUP SESSIONS BY USER
+  const userMap = {}
+
+  sessions.forEach(s => {
+
+    if (!userMap[s.user_id]) {
+      userMap[s.user_id] = {
+        totalRisk: 0,
+        count: 0,
+        maxRiskLevel: "LOW",
+        lastActivity: s.timestamp,
+        anomalyCount: 0
+      }
+    }
+
+    const u = userMap[s.user_id]
+
+    u.totalRisk += Math.abs(s.risk_score)
+    u.count += 1
+
+    if (s.risk_level === "HIGH") u.maxRiskLevel = "HIGH"
+    else if (s.risk_level === "MEDIUM" && u.maxRiskLevel !== "HIGH")
+      u.maxRiskLevel = "MEDIUM"
+
+    if (new Date(s.timestamp) > new Date(u.lastActivity)) {
+      u.lastActivity = s.timestamp
+    }
+
+    if (s.is_anomaly) u.anomalyCount += 1
+  })
+
+  // 🔥 MERGE USERS + SESSIONS
+  let rows = users.map(user => {
+
+    const sessionData = userMap[user.user_id]
+
+    if (!sessionData) {
+      return {
+        user_id: user.user_id,
+        department: user.department,
+        role: user.role,
+        avgRisk: "0%",
+        riskLevel: "LOW",
+        anomalyCount: 0,
+        lastActivity: "No activity"
+      }
+    }
+
+    return {
+      user_id: user.user_id,
+      department: user.department,
+      role: user.role,
+      avgRisk: ((sessionData.totalRisk / sessionData.count) * 100).toFixed(1) + "%",
+      riskLevel: sessionData.maxRiskLevel,
+      anomalyCount: sessionData.anomalyCount,
+      lastActivity: new Date(sessionData.lastActivity).toLocaleString()
+    }
+  })
+
+  // 🔍 SEARCH
   rows = rows.filter(r =>
     r.user_id.toLowerCase().includes(search.toLowerCase()) ||
     r.department.toLowerCase().includes(search.toLowerCase()) ||
     r.role.toLowerCase().includes(search.toLowerCase())
   )
 
-  const navigate = useNavigate()
-
-  // FILTERS
+  // 🎯 FILTER
   if (riskFilter)
     rows = rows.filter(r => r.riskLevel === riskFilter)
-
-  if (remoteFilter)
-    rows = rows.filter(r => String(r.remote) === remoteFilter)
-
-  if (privFilter)
-    rows = rows.filter(r => String(r.privilege) === privFilter)
-
-  if (noticeFilter)
-    rows = rows.filter(r => String(r.notice) === noticeFilter)
 
   return (
     <div className="p-8">
@@ -52,56 +95,25 @@ function Users() {
 
       {/* SEARCH */}
       <input
-        placeholder="Search User ID / Department / Role"
+        placeholder="Search User / Department / Role"
         className="border p-3 rounded-xl w-full mb-6"
         onChange={e => setSearch(e.target.value)}
       />
 
-      {/* FILTER PANEL */}
-      <div className="grid grid-cols-4 gap-4 mb-8">
-
+      {/* FILTER */}
+      <div className="mb-8">
         <select
           onChange={e => setRiskFilter(e.target.value)}
           className="border p-2 rounded-xl"
         >
           <option value="">Risk Level</option>
-          <option>Low</option>
-          <option>Medium</option>
-          <option>High</option>
-          <option>Critical</option>
+          <option>LOW</option>
+          <option>MEDIUM</option>
+          <option>HIGH</option>
         </select>
-
-        <select
-          onChange={e => setRemoteFilter(e.target.value)}
-          className="border p-2 rounded-xl"
-        >
-          <option value="">Remote Worker</option>
-          <option value="true">Yes</option>
-          <option value="false">No</option>
-        </select>
-
-        <select
-          onChange={e => setPrivFilter(e.target.value)}
-          className="border p-2 rounded-xl"
-        >
-          <option value="">Privilege Level</option>
-          <option value="1">User</option>
-          <option value="2">Power User</option>
-          <option value="3">Admin</option>
-        </select>
-
-        <select
-          onChange={e => setNoticeFilter(e.target.value)}
-          className="border p-2 rounded-xl"
-        >
-          <option value="">Notice Period</option>
-          <option value="true">On Notice</option>
-          <option value="false">Active</option>
-        </select>
-
       </div>
 
-      {/* USERS TABLE */}
+      {/* TABLE */}
       <div className="bg-white rounded-2xl shadow">
 
         <table className="w-full text-sm">
@@ -109,11 +121,11 @@ function Users() {
           <thead className="text-slate-400 text-left">
             <tr>
               <th className="p-4">User</th>
+              <th>Department</th>
               <th>Role</th>
-              <th>Privilege</th>
-              <th>Login Hour</th>
-              <th>Variability</th>
-              <th>Risk</th>
+              <th>Avg Risk</th>
+              <th>Risk Level</th>
+              <th>Anomalies</th>
               <th>Last Activity</th>
               <th></th>
             </tr>
@@ -125,19 +137,22 @@ function Users() {
               <tr key={r.user_id} className="border-t h-14 hover:bg-slate-50">
 
                 <td className="p-4 font-semibold">{r.user_id}</td>
+                <td>{r.department}</td>
                 <td>{r.role}</td>
-                <td>{r.privilege}</td>
-                <td>{r.loginHour}</td>
-                <td>{r.variability}</td>
+                <td>{r.avgRisk}</td>
 
                 <td className="text-red-400 font-semibold">
                   {r.riskLevel}
                 </td>
 
+                <td>{r.anomalyCount}</td>
                 <td>{r.lastActivity}</td>
 
                 <td>
-                  <button onClick={() => navigate(`/users/${r.user_id}`)} className="bg-blue-100 text-blue-600 px-3 py-1 rounded-lg">
+                  <button
+                    onClick={() => navigate(`/users/${r.user_id}`)}
+                    className="bg-blue-100 text-blue-600 px-3 py-1 rounded-lg"
+                  >
                     View Intelligence
                   </button>
                 </td>

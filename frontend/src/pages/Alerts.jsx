@@ -1,24 +1,35 @@
-import { useState } from "react"
-
-import { usersMock } from "../services/usersMock"
-import { sessionsMock } from "../services/sessionsMock"
-import { eventsMock } from "../services/eventsMock"
-import { createIncidentFromAlert } from "../services/incidentStore"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
-import { generateAlerts } from "../services/alertEngine"
+import { fetchAnomalySessions } from "../services/api"
+import { createIncidentFromAlert } from "../services/incidentStore"
 
 import AlertCard from "../components/AlertCard"
 
 function Alerts() {
 
-  const [alerts, setAlerts] = useState(
-    generateAlerts(usersMock, eventsMock, sessionsMock)
-  )
-
+  const [alerts, setAlerts] = useState([])
   const navigate = useNavigate()
 
-  
+  useEffect(() => {
+    fetchAnomalySessions().then(data => {
+
+      // 🔥 Transform backend → UI format
+      const mapped = data.map(s => ({
+        id: s.session_id,
+        user_id: s.user_id,
+        department: "Unknown", // backend doesn't give this
+        severity: s.risk_level.toLowerCase(),
+        tags: s.reasons || [],
+        riskScore: (Math.abs(s.risk_score) * 100).toFixed(1) + "%",
+        timestamp: s.timestamp,
+        reviewed: false
+      }))
+
+      setAlerts(mapped)
+    })
+  }, [])
+
   const handleReview = (id) => {
     setAlerts(prev =>
       prev.map(a =>
@@ -29,19 +40,19 @@ function Alerts() {
 
   const handleConvert = (id) => {
 
-  const alert = alerts.find(a => a.id === id)
+    const alert = alerts.find(a => a.id === id)
 
-  const incident =
-    createIncidentFromAlert(alert)
+    const incident =
+      createIncidentFromAlert(alert)
 
-  setAlerts(prev =>
-    prev.map(a =>
-      a.id === id ? { ...a, reviewed: true } : a
+    setAlerts(prev =>
+      prev.map(a =>
+        a.id === id ? { ...a, reviewed: true } : a
+      )
     )
-  )
 
-  navigate(`/incidents/${incident.id}`)
-}
+    navigate(`/incidents/${incident.id}`)
+  }
 
   const activeAlerts =
     alerts.filter(a => !a.reviewed)
@@ -58,7 +69,7 @@ function Alerts() {
 
       <div className="grid grid-cols-3 gap-8">
 
-        {/* ⭐ ALERT FEED */}
+        {/* ALERT FEED */}
         <div className="col-span-2">
 
           <div className="bg-white rounded-2xl shadow p-6">
@@ -90,7 +101,7 @@ function Alerts() {
 
         </div>
 
-        {/* ⭐ SIDE PANEL */}
+        {/* SIDE PANEL */}
         <div className="space-y-6">
 
           <div className="bg-white rounded-2xl shadow p-6">

@@ -1,11 +1,13 @@
-import { useState } from "react"
+/* eslint-disable no-unused-vars */
+import { useEffect, useState } from "react"
 
-import { usersMock } from "../services/usersMock"
+import { fetchSessions, fetchUsers } from "../services/api"
+
 import { sessionsMock } from "../services/sessionsMock"
+import { usersMock } from "../services/usersMock"
 import { eventsMock } from "../services/eventsMock"
 
 import {
-  generateUserRiskTrend,
   generateLoginDistribution,
   generateUserDataAccess,
   generateBehaviourCompliance,
@@ -19,18 +21,46 @@ import BehaviourComplianceBars from "../charts/BehaviourComplianceBars"
 import RadarBehaviourChart from "../charts/RadarBehaviourChart"
 import DataAccessChart from "../charts/DataAccessChart"
 
-
 function Intelligence() {
 
-  const [selectedUser, setSelectedUser] =
-    useState(usersMock[0].user_id)
+  const [sessions, setSessions] = useState([])
+  const [users, setUsers] = useState([])
+  const [selectedUser, setSelectedUser] = useState("")
+
+  useEffect(() => {
+    fetchSessions().then(setSessions)
+    fetchUsers().then(data => {
+      setUsers(data)
+      if (data.length) setSelectedUser(data[0].user_id)
+    })
+  }, [])
 
   const user =
-    usersMock.find(u => u.user_id === selectedUser)
+    users.find(u => u.user_id === selectedUser)
+
+  // 🔥 REAL: Risk Trend (from sessions)
+  const userSessions =
+    sessions.filter(s => s.user_id === selectedUser)
+
+  const trendMap = {}
+
+  userSessions.forEach(s => {
+
+    const day =
+      new Date(s.timestamp).toLocaleDateString()
+
+    if (!trendMap[day]) trendMap[day] = 0
+
+    trendMap[day] += Math.abs(s.risk_score)
+  })
 
   const riskTrend =
-    generateUserRiskTrend(selectedUser, eventsMock)
+    Object.keys(trendMap).map(d => ({
+      day: d,
+      risk: Number(trendMap[d].toFixed(1))
+    }))
 
+  // ⚠️ MOCK DATA (kept intentionally)
   const loginDist =
     generateLoginDistribution(selectedUser, sessionsMock)
 
@@ -45,11 +75,10 @@ function Intelligence() {
     )
 
   const featureImportance =
-    generateFeatureImportance(user)
+    user ? generateFeatureImportance(user) : []
 
   const radar =
-    generateRadarProfile(user, eventsMock)
-
+    user ? generateRadarProfile(user, eventsMock) : []
 
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
@@ -66,7 +95,7 @@ function Intelligence() {
           onChange={e => setSelectedUser(e.target.value)}
           className="border p-3 rounded-xl"
         >
-          {usersMock.map(u => (
+          {users.map(u => (
             <option key={u.user_id} value={u.user_id}>
               {u.user_id} — {u.department}
             </option>
@@ -76,42 +105,51 @@ function Intelligence() {
       </div>
 
 
-      {/* RISK TREND */}
+      {/* ✅ REAL RISK TREND */}
       <div className="bg-white p-6 rounded-2xl shadow mb-8">
-        <h2 className="font-semibold mb-4">
+        <h2 className="font-semibold mb-2">
           Behaviour Risk Trend
         </h2>
         <UserRiskTrendChart data={riskTrend} />
       </div>
 
 
-      {/* LOGIN + ACCESS */}
+      {/* ⚠️ MOCK LOGIN + ACCESS */}
       <div className="grid grid-cols-2 gap-8 mb-8">
 
         <div className="bg-white p-6 rounded-2xl shadow">
-          <h2 className="font-semibold mb-4">
+          <h2 className="font-semibold mb-2">
             Login Behaviour Pattern
           </h2>
+          <div className="text-xs text-orange-400 mb-2">
+            Using mock data
+          </div>
           <LoginDistributionChart data={loginDist} />
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow">
-          <h2 className="font-semibold mb-4">
+          <h2 className="font-semibold mb-2">
             Data Access Behaviour
           </h2>
+          <div className="text-xs text-orange-400 mb-2">
+            Using mock data
+          </div>
           <DataAccessChart data={dataAccess} />
         </div>
 
       </div>
 
 
-      {/* COMPLIANCE + FEATURE */}
+      {/* ⚠️ MOCK COMPLIANCE + FEATURE */}
       <div className="grid grid-cols-2 gap-8 mb-8">
 
         <div className="bg-white p-6 rounded-2xl shadow">
-          <h2 className="font-semibold mb-4">
+          <h2 className="font-semibold mb-2">
             Behaviour Compliance
           </h2>
+          <div className="text-xs text-orange-400 mb-2">
+            Using mock data
+          </div>
           <BehaviourComplianceBars data={compliance} />
         </div>
 
@@ -120,6 +158,10 @@ function Intelligence() {
           <h2 className="font-semibold mb-4">
             Risk Contribution Factors
           </h2>
+
+          <div className="text-xs text-orange-400 mb-3">
+            Using mock data
+          </div>
 
           {featureImportance.map(f => (
 
@@ -146,11 +188,14 @@ function Intelligence() {
       </div>
 
 
-      {/* RADAR */}
+      {/* ⚠️ MOCK RADAR */}
       <div className="bg-white p-6 rounded-2xl shadow">
-        <h2 className="font-semibold mb-4">
+        <h2 className="font-semibold mb-2">
           Behaviour Fingerprint
         </h2>
+        <div className="text-xs text-orange-400 mb-2">
+          Using mock data
+        </div>
         <RadarBehaviourChart data={radar} />
       </div>
 
