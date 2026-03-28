@@ -1,15 +1,12 @@
 function StatCard({ title, value, color }) {
   return (
-    <div className="bg-white rounded-2xl p-5 shadow hover:shadow-lg transition">
-
-      <p className="text-sm text-slate-500 mb-2">
+    <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-5">
+      <div className="text-xs text-slate-500 mb-2 tracking-widest">
         {title}
-      </p>
-
-      <h2 className={`text-3xl font-bold ${color}`}>
+      </div>
+      <div className={`text-2xl font-bold ${color}`}>
         {value}
-      </h2>
-
+      </div>
     </div>
   )
 }
