@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react"
-
 import { fetchUsers, fetchUserIntelligence } from "../services/api"
 
 import UserRiskTrendChart from "../charts/UserRiskTrendChart"
@@ -15,22 +14,13 @@ function Intelligence() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // ----------------------------
-  // LOAD USERS
-  // ----------------------------
   useEffect(() => {
     fetchUsers().then(res => {
       setUsers(res)
-
-      if (res.length) {
-        setSelectedUser(res[0].user_id)
-      }
+      if (res.length) setSelectedUser(res[0].user_id)
     })
   }, [])
 
-  // ----------------------------
-  // LOAD INTELLIGENCE
-  // ----------------------------
   useEffect(() => {
     if (!selectedUser) return
 
@@ -40,141 +30,95 @@ function Intelligence() {
     })
   }, [selectedUser])
 
-  // ----------------------------
-  // LOADING STATE
-  // ----------------------------
-  if (loading) {
-    return <div className="p-8">Loading intelligence...</div>
-  }
+  if (loading) return <div className="p-8 text-slate-400">Loading...</div>
+  if (!data) return <div className="p-8 text-red-400">Error loading data</div>
 
-  if (!data) {
-    return <div className="p-8 text-red-500">Failed to load intelligence</div>
-  }
-
-  // ----------------------------
-  // ✅ SAFE DATE HANDLING (FIX CRASH)
-  // ----------------------------
   const riskTrend = data.risk_trend
-    .filter(r => r.day) // remove empty
-    .map(r => {
-      const d = new Date(r.day)
-
-      if (isNaN(d.getTime())) {
-        console.warn("Invalid date from backend:", r.day)
-        return null
-      }
-
-      return {
-        day: d.toISOString().split("T")[0], // ISO format
-        risk: r.risk
-      }
-    })
-    .filter(Boolean)
+    .filter(r => r.day)
+    .map(r => ({
+      day: new Date(r.day).toISOString().split("T")[0],
+      risk: r.risk
+    }))
 
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
+    <div className="p-8">
 
       {/* HEADER */}
       <div className="flex justify-between items-center mb-8">
 
-        <h1 className="text-3xl font-bold text-slate-700">
-          Behaviour Intelligence Console
-        </h1>
+        <div>
+          <div className="text-xs tracking-widest text-indigo-400 mb-2">
+            INTELLIGENCE
+          </div>
+
+          <h1 className="text-2xl font-bold text-white">
+            Behaviour Intelligence Console
+          </h1>
+        </div>
 
         <select
           value={selectedUser}
           onChange={e => setSelectedUser(e.target.value)}
-          className="border p-3 rounded-xl"
+          className="bg-[#0f0f1a] border border-indigo-500/20 text-slate-300 px-4 py-2 rounded-lg"
         >
           {users.map(u => (
             <option key={u.user_id} value={u.user_id}>
-              {u.user_id} — {u.department}
+              {u.user_id}
             </option>
           ))}
         </select>
 
       </div>
 
-      {/* ---------------------------- */}
-      {/* ✅ RISK TREND */}
-      {/* ---------------------------- */}
-      <div className="bg-white p-6 rounded-2xl shadow mb-8">
-        <h2 className="font-semibold mb-2">
-          Behaviour Risk Trend
-        </h2>
+      {/* RISK TREND */}
+      <div className="bg-[#0f0f1a] border border-indigo-500/20 p-6 rounded-xl mb-8">
         <UserRiskTrendChart data={riskTrend} />
       </div>
 
-      {/* ---------------------------- */}
-      {/* ✅ LOGIN + DATA ACCESS */}
-      {/* ---------------------------- */}
+      {/* GRIDS */}
       <div className="grid grid-cols-2 gap-8 mb-8">
 
-        <div className="bg-white p-6 rounded-2xl shadow">
-          <h2 className="font-semibold mb-2">
-            Login Behaviour Pattern
-          </h2>
+        <div className="bg-[#0f0f1a] p-6 rounded-xl border border-indigo-500/20">
           <LoginDistributionChart data={data.login_deviation} />
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow">
-          <h2 className="font-semibold mb-2">
-            Data Access Behaviour
-          </h2>
+        <div className="bg-[#0f0f1a] p-6 rounded-xl border border-indigo-500/20">
           <DataAccessChart data={data.data_access} />
         </div>
 
       </div>
 
-      {/* ---------------------------- */}
-      {/* ✅ COMPLIANCE + FEATURE */}
-      {/* ---------------------------- */}
       <div className="grid grid-cols-2 gap-8 mb-8">
 
-        <div className="bg-white p-6 rounded-2xl shadow">
-          <h2 className="font-semibold mb-2">
-            Behaviour Compliance
-          </h2>
+        <div className="bg-[#0f0f1a] p-6 rounded-xl border border-indigo-500/20">
           <BehaviourComplianceBars data={data.compliance} />
         </div>
 
-        <div className="bg-white p-6 rounded-2xl shadow">
-
-          <h2 className="font-semibold mb-4">
-            Risk Contribution Factors
-          </h2>
+        <div className="bg-[#0f0f1a] p-6 rounded-xl border border-indigo-500/20">
 
           {data.feature_importance.map(f => (
-
-            <div key={f.feature} className="mb-3">
+            <div key={f.feature} className="mb-4">
 
               <div className="flex justify-between text-sm mb-1">
                 <span>{f.feature}</span>
                 <span>{(f.impact * 100).toFixed(0)}%</span>
               </div>
 
-              <div className="w-full bg-slate-200 rounded-full h-2">
+              <div className="w-full bg-slate-800 h-2 rounded-full">
                 <div
-                  className="bg-purple-400 h-2 rounded-full"
+                  className="bg-red-500 h-2 rounded-full"
                   style={{ width: `${f.impact * 100}%` }}
                 />
               </div>
 
             </div>
-
           ))}
 
         </div>
 
       </div>
 
-      {/* ---------------------------- */}
-      {/* ✅ RADAR */}
-      {/* ---------------------------- */}
-      <div className="bg-white p-6 rounded-2xl shadow">
-        <h2 className="font-semibold mb-2">
-          Behaviour Fingerprint
-        </h2>
+      <div className="bg-[#0f0f1a] p-6 rounded-xl border border-indigo-500/20">
         <RadarBehaviourChart data={data.radar_profile} />
       </div>
 

@@ -24,39 +24,41 @@ function Analytics() {
   }, [])
 
   if (loading) {
-    return <div className="p-8">Loading analytics...</div>
+    return (
+      <div className="p-8 text-slate-400">
+        Loading analytics...
+      </div>
+    )
   }
 
   if (!analytics) {
-    return <div className="p-8 text-red-500">Failed to load analytics</div>
+    return (
+      <div className="p-8 text-red-400">
+        Failed to load analytics
+      </div>
+    )
   }
 
-  // -----------------------------------
-  // ✅ 1. RISK TREND (FORCE ISO DATE)
-  // -----------------------------------
+  // ----------------------------
+  // DATA TRANSFORM (UNCHANGED)
+  // ----------------------------
   const riskTrendData = analytics.risk_over_time.map(r => ({
-    day: new Date(r.day).toISOString().split("T")[0], // ISO: YYYY-MM-DD
+    day: new Date(r.day).toISOString().split("T")[0],
     risk: r.risk
   }))
 
-  // -----------------------------------
-  // ✅ 2. DEVICE RISK (BACKEND OR FALLBACK)
-  // -----------------------------------
   let deviceData = []
 
   if (analytics.device_risk && analytics.device_risk.length > 0) {
-    // ✅ Use backend data
     deviceData = analytics.device_risk.map(d => ({
       name: d.device_type,
       value: d.count
     }))
   } else {
-    // 🔥 Fallback → derive from REAL sessions (NOT mock)
     const deviceMap = {}
 
     sessions.forEach(s => {
       const device = s.device_type || "Unknown"
-
       if (!deviceMap[device]) deviceMap[device] = 0
       deviceMap[device] += 1
     })
@@ -67,35 +69,61 @@ function Analytics() {
     }))
   }
 
-  // -----------------------------------
-  // ✅ 3. DEPARTMENT RISK (FORMAT FIX)
-  // -----------------------------------
   const deptData = analytics.department_risk.map(d => ({
     name: d.department,
     risk: d.score
   }))
 
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
+    <div className="p-8">
 
-      <h1 className="text-3xl font-bold text-slate-700 mb-8">
-        SOC Analytics
-      </h1>
+      {/* HEADER */}
+      <div className="mb-10">
 
-      {/* ROW 1 */}
-      <div className="grid grid-cols-2 gap-8 mb-8">
-
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <h2 className="font-semibold text-slate-600 mb-4">
-            Organizational Risk Trend
-          </h2>
-          <RiskTrendChart data={riskTrendData} />
+        <div className="text-xs tracking-widest text-indigo-400 mb-2">
+          ANALYTICS
         </div>
 
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <h2 className="font-semibold text-slate-600 mb-4">
-            Device Risk Distribution
-          </h2>
+        <h1 className="text-2xl font-bold text-white">
+          Organizational Risk Insights
+        </h1>
+
+        <p className="text-sm text-slate-500 mt-1">
+          Monitor system-wide behavioral patterns and anomalies
+        </p>
+
+      </div>
+
+      {/* TOP GRID */}
+      <div className="grid grid-cols-2 gap-8 mb-10">
+
+        {/* RISK TREND */}
+        <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
+
+          <div className="mb-4">
+            <h2 className="text-sm tracking-widest text-indigo-400">
+              RISK TREND
+            </h2>
+            <p className="text-xs text-slate-500">
+              Organizational risk progression over time
+            </p>
+          </div>
+
+          <RiskTrendChart data={riskTrendData} />
+
+        </div>
+
+        {/* DEVICE DISTRIBUTION */}
+        <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
+
+          <div className="mb-4">
+            <h2 className="text-sm tracking-widest text-indigo-400">
+              DEVICE DISTRIBUTION
+            </h2>
+            <p className="text-xs text-slate-500">
+              Risk exposure across device types
+            </p>
+          </div>
 
           {deviceData.length === 0 && (
             <div className="text-xs text-red-400 mb-2">
@@ -104,16 +132,25 @@ function Analytics() {
           )}
 
           <DeviceChart data={deviceData} />
+
         </div>
 
       </div>
 
-      {/* ROW 2 */}
-      <div className="bg-white rounded-2xl p-6 shadow">
-        <h2 className="font-semibold text-slate-600 mb-4">
-          Department Risk Heatmap
-        </h2>
+      {/* HEATMAP */}
+      <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
+
+        <div className="mb-5">
+          <h2 className="text-sm tracking-widest text-indigo-400">
+            DEPARTMENT RISK HEATMAP
+          </h2>
+          <p className="text-xs text-slate-500">
+            Risk distribution across organizational units
+          </p>
+        </div>
+
         <DepartmentHeatmap data={deptData} />
+
       </div>
 
     </div>

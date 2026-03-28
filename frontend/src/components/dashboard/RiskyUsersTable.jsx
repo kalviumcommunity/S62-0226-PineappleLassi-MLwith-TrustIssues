@@ -1,6 +1,7 @@
-
+import { useNavigate } from "react-router-dom"
 
 function RiskyUsersTable({ data }) {
+  const navigate = useNavigate()
   return (
     <div className="bg-[#0a0a0f] border border-indigo-500/10 rounded-xl overflow-hidden">
 
@@ -52,7 +53,9 @@ function RiskyUsersTable({ data }) {
               </td>
 
               <td className="px-6 py-4">
-                <button className="px-3 py-1 text-xs rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/20 transition">
+                <button 
+                onClick={() => navigate(`/users/${user.user_id}`)}
+                className="px-3 py-1 text-xs rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/20 transition">
                   Investigate
                 </button>
               </td>
