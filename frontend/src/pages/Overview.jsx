@@ -1,8 +1,7 @@
-/* eslint-disable no-unused-vars */
 import { useEffect, useState } from "react"
 import StatCard from "../components/dashboard/StatCard"
 
-import { fetchOverviewCharts } from "../services/api"
+import { fetchOverviewCharts, fetchRiskyUsers } from "../services/api"
 
 import AlertTrendChart from "../charts/AlertTrendChart"
 import RiskPieChart from "../charts/RiskPieChart"
@@ -12,10 +11,12 @@ function Overview() {
 
   const [data, setData] = useState(null)
   const [time, setTime] = useState(new Date())
+  const [topRiskUsers, setTopRiskUsers] = useState([]) // ✅ ADDED
 
   useEffect(() => {
 
     fetchOverviewCharts().then(setData)
+    fetchRiskyUsers().then(setTopRiskUsers) // ✅ ADDED
 
     const clock = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(clock)
@@ -66,11 +67,6 @@ function Overview() {
     value: r.value
   }))
 
-  // ----------------------------
-  // ⚠️ TOP USERS (NOT PROVIDED)
-  // ----------------------------
-  const topRiskUsers = [] // backend doesn't return this yet
-
   return (
     <div className="min-h-screen w-full bg-[#0a0a0f] text-slate-200 font-mono p-8">
 
@@ -100,7 +96,11 @@ function Overview() {
         <StatCard title="Total Users" value={stats.totalUsers} color="text-indigo-400" />
         <StatCard title="High Risk Users" value={stats.highRiskUsers} color="text-red-400" />
         <StatCard title="Alerts Today" value={stats.alertsToday} color="text-orange-400" />
-        <StatCard title="Average Risk Score" value={`${(Math.abs(-1 * stats.avgRiskScore)*100).toFixed(3)}%`} color="text-pink-400" />
+        <StatCard
+          title="Average Risk Score"
+          value={`${(Math.abs(-1 * stats.avgRiskScore) * 100).toFixed(3)}%`}
+          color="text-pink-400"
+        />
       </div>
 
       {/* ---------------------------- */}
@@ -140,7 +140,7 @@ function Overview() {
 
         </div>
 
-        {/* TABLE */}
+        {/* RISKY USERS TABLE */}
         <div className="col-span-2">
           <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
 
@@ -153,10 +153,6 @@ function Overview() {
                 <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
                 LIVE MONITORING
               </div>
-            </div>
-
-            <div className="text-xs text-yellow-400 mb-3">
-              Not available (backend missing)
             </div>
 
             <RiskyUsersTable data={topRiskUsers} />

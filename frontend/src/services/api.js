@@ -105,3 +105,14 @@ export async function fetchOverviewCharts() {
     return null
   }
 }
+
+export async function fetchRiskyUsers() {
+  try {
+    const res = await fetch(`${BASE_URL}/overview/risky_users`) // ✅ underscore, not hyphen
+    if (!res.ok) throw new Error("Failed to fetch risky users")
+    return await res.json()
+  } catch (err) {
+    console.error("Error fetching risky users:", err)
+    return []
+  }
+}

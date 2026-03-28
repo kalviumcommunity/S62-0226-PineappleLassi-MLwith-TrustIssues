@@ -1,66 +1,58 @@
-
-
 function RiskyUsersTable({ data }) {
+
   return (
-    <div className="bg-[#0a0a0f] border border-indigo-500/10 rounded-xl overflow-hidden">
+    <div className="w-full">
 
       {/* HEADER */}
-      <div className="px-6 py-4 border-b border-indigo-500/10">
-        <h3 className="text-sm text-indigo-400 tracking-widest">
-          Top Risky Users
-        </h3>
+      <div className="grid grid-cols-5 text-xs text-slate-500 px-4 py-2 border-b border-indigo-500/10">
+        <div>User</div>
+        <div>Department</div>
+        <div>Risk Score</div>
+        <div>Variability</div>
+        <div>Last Anomaly</div>
       </div>
 
-      {/* TABLE */}
-      <table className="w-full text-sm">
+      {/* ROWS */}
+      {data.length === 0 && (
+        <div className="text-slate-500 text-sm p-4">
+          No risky users detected
+        </div>
+      )}
 
-        <thead className="text-slate-500 text-xs tracking-wider">
-          <tr className="border-b border-indigo-500/10">
-            <th className="text-left px-6 py-3">User</th>
-            <th className="text-left px-6 py-3">Department</th>
-            <th className="text-left px-6 py-3">Variability</th>
-            <th className="text-left px-6 py-3">Risk Score</th>
-            <th className="text-left px-6 py-3">Last Anomaly</th>
-            <th className="text-left px-6 py-3"></th>
-          </tr>
-        </thead>
+      {data.map((user, i) => {
 
-        <tbody>
-          {data.map((user, index) => (
-            <tr
-              key={index}
-              className="border-b border-indigo-500/5 hover:bg-indigo-500/5 transition"
-            >
-              <td className="px-6 py-4 text-slate-300 font-medium">
-                {user.user_id}
-              </td>
+        const riskPercent = (Math.abs(user.risk_score) * 100).toFixed(1)
 
-              <td className="px-6 py-4 text-slate-400">
-                {user.department}
-              </td>
+        return (
+          <div
+            key={i}
+            className="grid grid-cols-5 px-4 py-3 border-b border-indigo-500/5 hover:bg-indigo-500/5 transition"
+          >
 
-              <td className="px-6 py-4 text-slate-400">
-                {user.variability}
-              </td>
+            <div className="text-white">
+              {user.user_id}
+            </div>
 
-              <td className="px-6 py-4 font-semibold text-red-400">
-                {user.risk_score}
-              </td>
+            <div className="text-slate-400">
+              {user.department || "Unknown"}
+            </div>
 
-              <td className="px-6 py-4 text-slate-500">
-                {user.last_anomaly}
-              </td>
+            <div className="text-red-400 font-semibold">
+              {riskPercent}%
+            </div>
 
-              <td className="px-6 py-4">
-                <button className="px-3 py-1 text-xs rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/20 transition">
-                  Investigate
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
+            <div className="text-purple-400">
+              {user.variability_score.toFixed(2)}
+            </div>
 
-      </table>
+            <div className="text-slate-500 text-xs">
+              {user.last_anomaly_timestamp || "-"}
+            </div>
+
+          </div>
+        )
+      })}
+
     </div>
   )
 }
