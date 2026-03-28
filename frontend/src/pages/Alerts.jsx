@@ -14,12 +14,11 @@ function Alerts() {
   useEffect(() => {
     fetchAnomalySessions().then(data => {
 
-      // 🔥 Transform backend → UI format
       const mapped = data.map(s => ({
         id: s.session_id,
         user_id: s.user_id,
-        department: "Unknown", // backend doesn't give this
-        severity: s.risk_level.toLowerCase(),
+        department: "Unknown",
+        severity: s.risk_level?.toUpperCase() || "LOW",
         tags: s.reasons || [],
         riskScore: (Math.abs(s.risk_score) * 100).toFixed(1) + "%",
         timestamp: s.timestamp,
@@ -61,27 +60,50 @@ function Alerts() {
     alerts.filter(a => a.reviewed)
 
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
+    <div className="min-h-screen w-full bg-[#0a0a0f] text-slate-200 font-mono p-8">
 
-      <h1 className="text-3xl font-bold text-slate-700 mb-8">
-        Live Security Alerts Feed
-      </h1>
+      <style>{`
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+      `}</style>
 
+      {/* HEADER */}
+      <div className="mb-8">
+        <div className="text-[11px] tracking-[3px] text-indigo-400 mb-2">
+          ALERT SYSTEM
+        </div>
+
+        <h1 className="text-2xl font-bold text-white">
+          Live Security Alerts Feed
+        </h1>
+
+        <p className="text-xs text-slate-500 mt-2">
+          Real-time anomaly detection and incident tracking
+        </p>
+      </div>
+
+      {/* GRID */}
       <div className="grid grid-cols-3 gap-8">
 
         {/* ALERT FEED */}
         <div className="col-span-2">
 
-          <div className="bg-white rounded-2xl shadow p-6">
+          <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
 
-            <h2 className="font-semibold mb-4">
-              Active Alerts
-            </h2>
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-sm tracking-widest text-indigo-400">
+                ACTIVE ALERTS
+              </h2>
 
-            <div className="max-h-[70vh] overflow-y-auto pr-2">
+              <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                LIVE FEED
+              </div>
+            </div>
+
+            <div className="max-h-[70vh] overflow-y-auto pr-2 space-y-3">
 
               {activeAlerts.length === 0 &&
-                <div className="text-slate-400">
+                <div className="text-slate-500 text-sm">
                   No active alerts
                 </div>
               }
@@ -104,21 +126,30 @@ function Alerts() {
         {/* SIDE PANEL */}
         <div className="space-y-6">
 
-          <div className="bg-white rounded-2xl shadow p-6">
-            <h2 className="font-semibold mb-3">
-              Alert Stats
+          {/* STATS */}
+          <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
+
+            <h2 className="text-sm tracking-widest text-indigo-400 mb-4">
+              ALERT STATS
             </h2>
 
-            <div className="text-sm text-slate-500">
-              Total Alerts: {alerts.length}
-            </div>
+            <div className="space-y-3 text-sm">
 
-            <div className="text-sm text-slate-500">
-              Active: {activeAlerts.length}
-            </div>
+              <div className="flex justify-between text-slate-400">
+                <span>Total Alerts</span>
+                <span className="text-white">{alerts.length}</span>
+              </div>
 
-            <div className="text-sm text-slate-500">
-              Reviewed: {reviewedAlerts.length}
+              <div className="flex justify-between text-slate-400">
+                <span>Active</span>
+                <span className="text-orange-400">{activeAlerts.length}</span>
+              </div>
+
+              <div className="flex justify-between text-slate-400">
+                <span>Reviewed</span>
+                <span className="text-green-400">{reviewedAlerts.length}</span>
+              </div>
+
             </div>
 
           </div>
