@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { useEffect, useState } from "react"
 import StatCard from "../components/dashboard/StatCard"
 
@@ -20,14 +21,14 @@ import RiskyUsersTable from "../components/dashboard/RiskyUsersTable"
 function Overview() {
 
   const [sessions, setSessions] = useState([])
+  const [time, setTime] = useState(new Date())
 
   useEffect(() => {
     fetchSessions().then(setSessions)
-  }, [])
 
-  // =========================
-  // ✅ REAL (FROM BACKEND)
-  // =========================
+    const clock = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(clock)
+  }, [])
 
   const totalUsers =
     new Set(sessions.map(s => s.user_id)).size
@@ -58,10 +59,6 @@ function Overview() {
       )
     ).length
 
-  // =========================
-  // ⚠️ MOCK (TEMPORARY)
-  // =========================
-
   const alertTrendData =
     generateAlertTrend(eventsMock)
 
@@ -72,63 +69,90 @@ function Overview() {
     generateTopRiskUsers(usersMock, eventsMock, sessionsMock)
 
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
+    <div className="min-h-screen w-full bg-[#0a0a0f] text-slate-200 font-mono p-8">
 
-      <h1 className="text-3xl font-bold text-slate-700 mb-8">
-        SOC Command Center
-      </h1>
+      <style>{`
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+      `}</style>
 
-      {/* ✅ REAL STAT CARDS */}
-      <div className="grid grid-cols-6 gap-5 mb-10">
+      {/* HEADER */}
+      <div className="mb-8">
+        <div className="text-[11px] tracking-[3px] text-indigo-400 mb-2">
+          COMMAND OVERVIEW
+        </div>
 
-        <StatCard title="Total Users" value={totalUsers} color="text-blue-500" />
-        <StatCard title="High Risk Users" value={highRiskUsers} color="text-red-400" />
-        <StatCard title="Alerts Today" value={alertsToday} color="text-orange-400" />
-        <StatCard title="Active Incidents" value={alertsToday} color="text-purple-400" />
-        <StatCard title="Average Risk Score" value={`${avgRisk}%`} color="text-pink-400" />
-        <StatCard title="Data Exfiltration" value={dataExfiltration} color="text-rose-500" />
+        <h1 className="text-2xl font-bold text-white">
+          SOC Command Center
+        </h1>
 
+        <div className="text-xs text-slate-500 mt-2">
+          System Time: {time.toLocaleTimeString("en-US", { hour12: false })}
+        </div>
       </div>
 
-      {/* ⚠️ HYBRID CHARTS */}
+      {/* STATS */}
+      <div className="grid grid-cols-6 gap-5 mb-10">
+        <StatCard title="Total Users" value={totalUsers} color="text-indigo-400" />
+        <StatCard title="High Risk Users" value={highRiskUsers} color="text-red-400" />
+        <StatCard title="Alerts Today" value={alertsToday} color="text-orange-400" />
+        <StatCard title="Average Risk Score" value={`${avgRisk}%`} color="text-pink-400" />
+      </div>
+
+      {/* GRID */}
       <div className="grid grid-cols-2 gap-8">
 
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <h2 className="font-semibold text-slate-600 mb-2">
-            Alert Volume Trend
-          </h2>
-
-          <div className="text-xs text-orange-400 mb-3">
-            Using mock data
+        {/* ALERT TREND */}
+        <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-sm tracking-widest text-indigo-400">
+              ALERT TREND
+            </h2>
+            <span className="text-[10px] text-orange-400">
+              MOCK DATA
+            </span>
           </div>
 
           <AlertTrendChart data={alertTrendData} />
         </div>
 
-        <div className="bg-white rounded-2xl p-6 shadow">
-          <h2 className="font-semibold text-slate-600 mb-2">
-            Risk Distribution Snapshot
-          </h2>
-
-          <div className="text-xs text-orange-400 mb-3">
-            Using mock data
+        {/* RISK DISTRIBUTION */}
+        <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-sm tracking-widest text-indigo-400">
+              RISK DISTRIBUTION
+            </h2>
+            <span className="text-[10px] text-orange-400">
+              MOCK DATA
+            </span>
           </div>
 
           <RiskPieChart data={riskDistributionData} />
         </div>
 
+        {/* TABLE */}
         <div className="col-span-2">
+          <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
 
-          <div className="text-xs text-orange-400 mb-2">
-            Using mock data
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-sm tracking-widest text-indigo-400">
+                HIGH RISK ENTITIES
+              </h2>
+
+              <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                LIVE MONITORING
+              </div>
+            </div>
+
+            <div className="text-xs text-orange-400 mb-3">
+              Using mock data
+            </div>
+
+            <RiskyUsersTable data={topRiskUsers} />
           </div>
-
-          <RiskyUsersTable data={topRiskUsers} />
-
         </div>
 
       </div>
-
     </div>
   )
 }

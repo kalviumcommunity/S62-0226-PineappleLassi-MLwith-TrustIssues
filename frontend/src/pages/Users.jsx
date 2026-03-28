@@ -1,168 +1,147 @@
 import { useEffect, useState } from "react"
+import { fetchUsers, fetchSessions } from "../services/api"
 import { useNavigate } from "react-router-dom"
-import { fetchSessions, fetchUsers } from "../services/api"
 
 function Users() {
-
-  const [sessions, setSessions] = useState([])
   const [users, setUsers] = useState([])
-  const [search, setSearch] = useState("")
-  const [riskFilter, setRiskFilter] = useState("")
-
   const navigate = useNavigate()
 
   useEffect(() => {
-    fetchSessions().then(setSessions)
-    fetchUsers().then(setUsers)
+    Promise.all([fetchUsers(), fetchSessions()])
+      .then(([usersData, sessionsData]) => {
+
+        const mapped = usersData.map(user => {
+
+          const userSessions =
+            sessionsData.filter(s => s.user_id === user.user_id)
+
+          const anomalies =
+            userSessions.filter(s => s.is_anomaly).length
+
+          const avgRisk =
+            userSessions.length
+              ? (
+                  userSessions.reduce((sum, s) =>
+                    sum + Math.abs(s.risk_score), 0
+                  ) / userSessions.length * 100
+                ).toFixed(1)
+              : 0
+
+          const lastActivity =
+            userSessions.length
+              ? userSessions[userSessions.length - 1].timestamp
+              : "-"
+
+          return {
+            user_id: user.user_id,
+            department: user.department || "Unknown",
+            role: user.role || "user",
+            avg_risk: avgRisk,
+            anomalies,
+            last_activity: lastActivity
+          }
+        })
+
+        setUsers(mapped)
+      })
   }, [])
 
-  // 🔥 GROUP SESSIONS BY USER
-  const userMap = {}
+  const getRiskLevel = (risk) => {
+    if (risk >= 15) return "HIGH"
+    if (risk >= 10) return "MEDIUM"
+    return "LOW"
+  }
 
-  sessions.forEach(s => {
-
-    if (!userMap[s.user_id]) {
-      userMap[s.user_id] = {
-        totalRisk: 0,
-        count: 0,
-        maxRiskLevel: "LOW",
-        lastActivity: s.timestamp,
-        anomalyCount: 0
-      }
-    }
-
-    const u = userMap[s.user_id]
-
-    u.totalRisk += Math.abs(s.risk_score)
-    u.count += 1
-
-    if (s.risk_level === "HIGH") u.maxRiskLevel = "HIGH"
-    else if (s.risk_level === "MEDIUM" && u.maxRiskLevel !== "HIGH")
-      u.maxRiskLevel = "MEDIUM"
-
-    if (new Date(s.timestamp) > new Date(u.lastActivity)) {
-      u.lastActivity = s.timestamp
-    }
-
-    if (s.is_anomaly) u.anomalyCount += 1
-  })
-
-  // 🔥 MERGE USERS + SESSIONS
-  let rows = users.map(user => {
-
-    const sessionData = userMap[user.user_id]
-
-    if (!sessionData) {
-      return {
-        user_id: user.user_id,
-        department: user.department,
-        role: user.role,
-        avgRisk: "0%",
-        riskLevel: "LOW",
-        anomalyCount: 0,
-        lastActivity: "No activity"
-      }
-    }
-
-    return {
-      user_id: user.user_id,
-      department: user.department,
-      role: user.role,
-      avgRisk: ((sessionData.totalRisk / sessionData.count) * 100).toFixed(1) + "%",
-      riskLevel: sessionData.maxRiskLevel,
-      anomalyCount: sessionData.anomalyCount,
-      lastActivity: new Date(sessionData.lastActivity).toLocaleString()
-    }
-  })
-
-  // 🔍 SEARCH
-  rows = rows.filter(r =>
-    r.user_id.toLowerCase().includes(search.toLowerCase()) ||
-    r.department.toLowerCase().includes(search.toLowerCase()) ||
-    r.role.toLowerCase().includes(search.toLowerCase())
-  )
-
-  // 🎯 FILTER
-  if (riskFilter)
-    rows = rows.filter(r => r.riskLevel === riskFilter)
+  const getRiskColor = (level) => {
+    if (level === "HIGH") return "text-red-400"
+    if (level === "MEDIUM") return "text-orange-400"
+    return "text-green-400"
+  }
 
   return (
-    <div className="p-8">
+    <div className="min-h-screen w-full bg-[#0a0a0f] text-slate-200 font-mono p-8">
 
-      <h1 className="text-3xl font-bold text-slate-700 mb-6">
-        Users Investigation Hub
-      </h1>
-
-      {/* SEARCH */}
-      <input
-        placeholder="Search User / Department / Role"
-        className="border p-3 rounded-xl w-full mb-6"
-        onChange={e => setSearch(e.target.value)}
-      />
-
-      {/* FILTER */}
+      {/* HEADER */}
       <div className="mb-8">
-        <select
-          onChange={e => setRiskFilter(e.target.value)}
-          className="border p-2 rounded-xl"
-        >
-          <option value="">Risk Level</option>
-          <option>LOW</option>
-          <option>MEDIUM</option>
-          <option>HIGH</option>
-        </select>
+        <div className="text-[11px] tracking-[3px] text-indigo-400 mb-2">
+          USER MONITORING
+        </div>
+
+        <h1 className="text-2xl font-bold text-white">
+          Behavioral Risk Profiles
+        </h1>
+
+        <p className="text-xs text-slate-500 mt-2">
+          Real-time user activity and anomaly tracking
+        </p>
       </div>
 
       {/* TABLE */}
-      <div className="bg-white rounded-2xl shadow">
+      <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl overflow-hidden">
 
-        <table className="w-full text-sm">
+        {/* HEADER */}
+        <div className="grid grid-cols-8 text-xs text-slate-500 px-6 py-3 border-b border-indigo-500/10 tracking-wider">
+          <div>User</div>
+          <div>Department</div>
+          <div>Role</div>
+          <div>Avg Risk</div>
+          <div>Risk Level</div>
+          <div>Anomalies</div>
+          <div>Last Activity</div>
+          <div></div>
+        </div>
 
-          <thead className="text-slate-400 text-left">
-            <tr>
-              <th className="p-4">User</th>
-              <th>Department</th>
-              <th>Role</th>
-              <th>Avg Risk</th>
-              <th>Risk Level</th>
-              <th>Anomalies</th>
-              <th>Last Activity</th>
-              <th></th>
-            </tr>
-          </thead>
+        {/* ROWS */}
+        {users.map((user, i) => {
+          const riskValue = parseFloat(user.avg_risk)
+          const riskLevel = getRiskLevel(riskValue)
 
-          <tbody>
+          return (
+            <div
+              key={i}
+              className="grid grid-cols-8 items-center px-6 py-4 border-b border-indigo-500/5 hover:bg-indigo-500/5 transition"
+            >
 
-            {rows.map(r => (
-              <tr key={r.user_id} className="border-t h-14 hover:bg-slate-50">
+              <div className="text-slate-200 font-medium">
+                {user.user_id}
+              </div>
 
-                <td className="p-4 font-semibold">{r.user_id}</td>
-                <td>{r.department}</td>
-                <td>{r.role}</td>
-                <td>{r.avgRisk}</td>
+              <div className="text-slate-400">
+                {user.department}
+              </div>
 
-                <td className="text-red-400 font-semibold">
-                  {r.riskLevel}
-                </td>
+              <div className="text-slate-400">
+                {user.role}
+              </div>
 
-                <td>{r.anomalyCount}</td>
-                <td>{r.lastActivity}</td>
+              <div className="text-slate-300">
+                {user.avg_risk}%
+              </div>
 
-                <td>
-                  <button
-                    onClick={() => navigate(`/users/${r.user_id}`)}
-                    className="bg-blue-100 text-blue-600 px-3 py-1 rounded-lg"
-                  >
-                    View Intelligence
-                  </button>
-                </td>
+              <div className={`font-semibold ${getRiskColor(riskLevel)}`}>
+                {riskLevel}
+              </div>
 
-              </tr>
-            ))}
+              <div className="text-slate-400">
+                {user.anomalies}
+              </div>
 
-          </tbody>
+              <div className="text-slate-500 text-sm">
+                {user.last_activity}
+              </div>
 
-        </table>
+              <div>
+                <button
+                  onClick={() => navigate(`${user.user_id}`)}
+                  className="px-3 py-1 text-xs rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/20 transition"
+                >
+                  View Intelligence
+                </button>
+              </div>
+
+            </div>
+          )
+        })}
 
       </div>
 
