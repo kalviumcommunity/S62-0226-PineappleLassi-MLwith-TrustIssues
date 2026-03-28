@@ -92,3 +92,27 @@ export async function fetchUserIntelligence(userId) {
     return null
   }
 }
+
+export async function fetchOverviewCharts() {
+  try {
+    const res = await fetch("http://localhost:8000/api/v1/overview/charts")
+
+    if (!res.ok) throw new Error("Failed to fetch overview charts")
+
+    return await res.json()
+  } catch (err) {
+    console.error("Error fetching overview:", err)
+    return null
+  }
+}
+
+export async function fetchRiskyUsers() {
+  try {
+    const res = await fetch(`${BASE_URL}/overview/risky_users`) // ✅ underscore, not hyphen
+    if (!res.ok) throw new Error("Failed to fetch risky users")
+    return await res.json()
+  } catch (err) {
+    console.error("Error fetching risky users:", err)
+    return []
+  }
+}

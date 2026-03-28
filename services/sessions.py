@@ -72,8 +72,12 @@ def fetch_anomaly_sessions() -> List[SessionsResponse]:
     df = df[df["is_anomaly"] == True]
 
     # 🔥 Sort latest first
-    df["processed_at"] = pd.to_datetime(df["processed_at"], errors="coerce")
+
+    df["processed_at"] = pd.to_datetime(df["processed_at"], errors="coerce", format="mixed")
     df = df.sort_values(by="processed_at", ascending=False)
+
+
+
 
     sessions = []
 
@@ -82,7 +86,7 @@ def fetch_anomaly_sessions() -> List[SessionsResponse]:
             reasons = json.loads(row["reasons"]) if pd.notna(row["reasons"]) else []
         except:
             reasons = []
-
+    
         session = SessionsResponse(
             session_id=row["session_id"],
             user_id=row["user_id"],
