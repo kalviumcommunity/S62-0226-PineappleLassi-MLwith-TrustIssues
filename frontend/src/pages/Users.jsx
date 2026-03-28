@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom"
 
 function Users() {
   const [users, setUsers] = useState([])
+  const [filter, setFilter] = useState("ALL") // ✅ ADDED
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -58,6 +59,16 @@ function Users() {
     return "text-green-400"
   }
 
+  // ✅ FILTER LOGIC ADDED
+  const filteredUsers = users.filter(user => {
+    if (filter === "ALL") return true
+
+    const riskValue = parseFloat(user.avg_risk)
+    const level = getRiskLevel(riskValue)
+
+    return level === filter
+  })
+
   return (
     <div className="min-h-screen w-full bg-[#0a0a0f] text-slate-200 font-mono p-8">
 
@@ -76,6 +87,23 @@ function Users() {
         </p>
       </div>
 
+      {/* ✅ FILTER BUTTONS */}
+      <div className="flex gap-3 mb-6">
+        {["ALL", "HIGH", "MEDIUM", "LOW"].map(level => (
+          <button
+            key={level}
+            onClick={() => setFilter(level)}
+            className={`px-3 py-1 text-xs rounded-md border transition 
+              ${filter === level
+                ? "bg-indigo-500/20 border-indigo-400 text-white"
+                : "bg-[#0f0f1a] border-indigo-500/20 text-slate-400 hover:bg-indigo-500/10"
+              }`}
+          >
+            {level}
+          </button>
+        ))}
+      </div>
+
       {/* TABLE */}
       <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl overflow-hidden">
 
@@ -92,7 +120,7 @@ function Users() {
         </div>
 
         {/* ROWS */}
-        {users.map((user, i) => {
+        {filteredUsers.map((user, i) => {
           const riskValue = parseFloat(user.avg_risk)
           const riskLevel = getRiskLevel(riskValue)
 

@@ -92,3 +92,16 @@ export async function fetchUserIntelligence(userId) {
     return null
   }
 }
+
+export async function fetchOverviewCharts() {
+  try {
+    const res = await fetch("http://localhost:8000/api/v1/overview/charts")
+
+    if (!res.ok) throw new Error("Failed to fetch overview charts")
+
+    return await res.json()
+  } catch (err) {
+    console.error("Error fetching overview:", err)
+    return null
+  }
+}
