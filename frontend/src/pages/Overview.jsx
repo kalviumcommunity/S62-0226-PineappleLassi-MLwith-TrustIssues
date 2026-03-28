@@ -2,17 +2,7 @@
 import { useEffect, useState } from "react"
 import StatCard from "../components/dashboard/StatCard"
 
-import { fetchSessions } from "../services/api"
-
-import { usersMock } from "../services/usersMock"
-import { sessionsMock } from "../services/sessionsMock"
-import { eventsMock } from "../services/eventsMock"
-
-import {
-  generateAlertTrend,
-  generateRiskDistribution,
-  generateTopRiskUsers
-} from "../services/intelligenceEngine"
+import { fetchOverviewCharts } from "../services/api"
 
 import AlertTrendChart from "../charts/AlertTrendChart"
 import RiskPieChart from "../charts/RiskPieChart"
@@ -20,53 +10,66 @@ import RiskyUsersTable from "../components/dashboard/RiskyUsersTable"
 
 function Overview() {
 
-  const [sessions, setSessions] = useState([])
+  const [data, setData] = useState(null)
   const [time, setTime] = useState(new Date())
 
   useEffect(() => {
-    fetchSessions().then(setSessions)
+
+    fetchOverviewCharts().then(setData)
 
     const clock = setInterval(() => setTime(new Date()), 1000)
     return () => clearInterval(clock)
+
   }, [])
 
-  const totalUsers =
-    new Set(sessions.map(s => s.user_id)).size
+  // ----------------------------
+  // LOADING STATE
+  // ----------------------------
+  if (!data) {
+    return <div className="p-8">Loading overview...</div>
+  }
 
-  const highRiskUsers =
-    new Set(
-      sessions
-        .filter(s => s.risk_level === "HIGH")
-        .map(s => s.user_id)
-    ).size
+  // ----------------------------
+  // ✅ SYSTEM STATS
+  // ----------------------------
+  const stats = data.system_stats || {
+    totalUsers: 0,
+    highRiskUsers: 0,
+    alertsToday: 0,
+    avgRiskScore: 0
+  }
 
-  const alertsToday =
-    sessions.filter(s => s.is_anomaly).length
+  // ----------------------------
+  // ✅ ALERT TREND (SAFE DATE FIX)
+  // ----------------------------
+  const alertTrendData = (data.alert_trend || [])
+    .map(a => {
+      const d = new Date(a.day)
 
-  const avgRisk =
-    sessions.length
-      ? (
-          sessions.reduce((sum, s) =>
-            sum + Math.abs(s.risk_score), 0
-          ) / sessions.length * 100
-        ).toFixed(1)
-      : 0
+      if (isNaN(d.getTime())) {
+        console.warn("Invalid date:", a.day)
+        return null
+      }
 
-  const dataExfiltration =
-    sessions.filter(s =>
-      s.reasons?.some(r =>
-        r.toLowerCase().includes("data")
-      )
-    ).length
+      return {
+        day: d.toISOString().split("T")[0],
+        alerts: a.alerts
+      }
+    })
+    .filter(Boolean)
 
-  const alertTrendData =
-    generateAlertTrend(eventsMock)
+  // ----------------------------
+  // ✅ RISK DISTRIBUTION
+  // ----------------------------
+  const riskDistributionData = (data.risk_distribution || []).map(r => ({
+    name: r.name,
+    value: r.value
+  }))
 
-  const riskDistributionData =
-    generateRiskDistribution(usersMock, eventsMock, sessionsMock)
-
-  const topRiskUsers =
-    generateTopRiskUsers(usersMock, eventsMock, sessionsMock)
+  // ----------------------------
+  // ⚠️ TOP USERS (NOT PROVIDED)
+  // ----------------------------
+  const topRiskUsers = [] // backend doesn't return this yet
 
   return (
     <div className="min-h-screen w-full bg-[#0a0a0f] text-slate-200 font-mono p-8">
@@ -86,47 +89,55 @@ function Overview() {
         </h1>
 
         <div className="text-xs text-slate-500 mt-2">
-          System Time: {time.toLocaleTimeString("en-US", { hour12: false })}
+          System Time: {time.toISOString().split("T")[1].split(".")[0]}
         </div>
       </div>
 
+      {/* ---------------------------- */}
       {/* STATS */}
+      {/* ---------------------------- */}
       <div className="grid grid-cols-6 gap-5 mb-10">
-        <StatCard title="Total Users" value={totalUsers} color="text-indigo-400" />
-        <StatCard title="High Risk Users" value={highRiskUsers} color="text-red-400" />
-        <StatCard title="Alerts Today" value={alertsToday} color="text-orange-400" />
-        <StatCard title="Average Risk Score" value={`${avgRisk}%`} color="text-pink-400" />
+        <StatCard title="Total Users" value={stats.totalUsers} color="text-indigo-400" />
+        <StatCard title="High Risk Users" value={stats.highRiskUsers} color="text-red-400" />
+        <StatCard title="Alerts Today" value={stats.alertsToday} color="text-orange-400" />
+        <StatCard title="Average Risk Score" value={`${(Math.abs(-1 * stats.avgRiskScore)*100).toFixed(3)}%`} color="text-pink-400" />
       </div>
 
+      {/* ---------------------------- */}
       {/* GRID */}
+      {/* ---------------------------- */}
       <div className="grid grid-cols-2 gap-8">
 
         {/* ALERT TREND */}
         <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-sm tracking-widest text-indigo-400">
-              ALERT TREND
-            </h2>
-            <span className="text-[10px] text-orange-400">
-              MOCK DATA
-            </span>
-          </div>
+          <h2 className="text-sm tracking-widest text-indigo-400 mb-3">
+            ALERT TREND
+          </h2>
 
-          <AlertTrendChart data={alertTrendData} />
+          {alertTrendData.length > 0 ? (
+            <AlertTrendChart data={alertTrendData} />
+          ) : (
+            <div className="text-xs text-slate-400">
+              No alert data available
+            </div>
+          )}
+
         </div>
 
         {/* RISK DISTRIBUTION */}
         <div className="bg-[#0f0f1a] border border-indigo-500/20 rounded-xl p-6">
-          <div className="flex justify-between items-center mb-3">
-            <h2 className="text-sm tracking-widest text-indigo-400">
-              RISK DISTRIBUTION
-            </h2>
-            <span className="text-[10px] text-orange-400">
-              MOCK DATA
-            </span>
-          </div>
+          <h2 className="text-sm tracking-widest text-indigo-400 mb-3">
+            RISK DISTRIBUTION
+          </h2>
 
-          <RiskPieChart data={riskDistributionData} />
+          {riskDistributionData.length > 0 ? (
+            <RiskPieChart data={riskDistributionData} />
+          ) : (
+            <div className="text-xs text-slate-400">
+              No risk data available
+            </div>
+          )}
+
         </div>
 
         {/* TABLE */}
@@ -144,11 +155,12 @@ function Overview() {
               </div>
             </div>
 
-            <div className="text-xs text-orange-400 mb-3">
-              Using mock data
+            <div className="text-xs text-yellow-400 mb-3">
+              Not available (backend missing)
             </div>
 
             <RiskyUsersTable data={topRiskUsers} />
+
           </div>
         </div>
 
