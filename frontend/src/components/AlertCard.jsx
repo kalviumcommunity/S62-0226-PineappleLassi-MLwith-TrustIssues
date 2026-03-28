@@ -1,4 +1,4 @@
-function AlertCard({ alert, onReview, onConvert }) {
+function AlertCard({ alert}) {
 
   const getSeverityColor = (sev) => {
     if (sev === "HIGH") return "text-red-400"
@@ -70,25 +70,6 @@ function AlertCard({ alert, onReview, onConvert }) {
         <span className={`font-semibold ${getSeverityColor(alert.severity)}`}>
           {alert.riskScore}
         </span>
-      </div>
-
-      {/* ACTIONS */}
-      <div className="flex gap-3">
-
-        <button
-          onClick={() => onReview(alert.id)}
-          className="px-3 py-1 text-xs rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/20 transition"
-        >
-          Mark Reviewed
-        </button>
-
-        <button
-          onClick={() => onConvert(alert.id)}
-          className="px-3 py-1 text-xs rounded-md bg-red-500/10 border border-red-500/20 text-red-300 hover:bg-red-500/20 transition"
-        >
-          Create Incident
-        </button>
-
       </div>
 
     </div>
