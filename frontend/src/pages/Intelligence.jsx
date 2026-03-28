@@ -1,19 +1,6 @@
-/* eslint-disable no-unused-vars */
 import { useEffect, useState } from "react"
 
-import { fetchSessions, fetchUsers } from "../services/api"
-
-import { sessionsMock } from "../services/sessionsMock"
-import { usersMock } from "../services/usersMock"
-import { eventsMock } from "../services/eventsMock"
-
-import {
-  generateLoginDistribution,
-  generateUserDataAccess,
-  generateBehaviourCompliance,
-  generateFeatureImportance,
-  generateRadarProfile
-} from "../services/intelligenceEngine"
+import { fetchUsers, fetchUserIntelligence } from "../services/api"
 
 import UserRiskTrendChart from "../charts/UserRiskTrendChart"
 import LoginDistributionChart from "../charts/LoginDistributionChart"
@@ -23,62 +10,66 @@ import DataAccessChart from "../charts/DataAccessChart"
 
 function Intelligence() {
 
-  const [sessions, setSessions] = useState([])
   const [users, setUsers] = useState([])
   const [selectedUser, setSelectedUser] = useState("")
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
 
+  // ----------------------------
+  // LOAD USERS
+  // ----------------------------
   useEffect(() => {
-    fetchSessions().then(setSessions)
-    fetchUsers().then(data => {
-      setUsers(data)
-      if (data.length) setSelectedUser(data[0].user_id)
+    fetchUsers().then(res => {
+      setUsers(res)
+
+      if (res.length) {
+        setSelectedUser(res[0].user_id)
+      }
     })
   }, [])
 
-  const user =
-    users.find(u => u.user_id === selectedUser)
+  // ----------------------------
+  // LOAD INTELLIGENCE
+  // ----------------------------
+  useEffect(() => {
+    if (!selectedUser) return
 
-  // 🔥 REAL: Risk Trend (from sessions)
-  const userSessions =
-    sessions.filter(s => s.user_id === selectedUser)
+    fetchUserIntelligence(selectedUser).then(res => {
+      setData(res)
+      setLoading(false)
+    })
+  }, [selectedUser])
 
-  const trendMap = {}
+  // ----------------------------
+  // LOADING STATE
+  // ----------------------------
+  if (loading) {
+    return <div className="p-8">Loading intelligence...</div>
+  }
 
-  userSessions.forEach(s => {
+  if (!data) {
+    return <div className="p-8 text-red-500">Failed to load intelligence</div>
+  }
 
-    const day =
-      new Date(s.timestamp).toLocaleDateString()
+  // ----------------------------
+  // ✅ SAFE DATE HANDLING (FIX CRASH)
+  // ----------------------------
+  const riskTrend = data.risk_trend
+    .filter(r => r.day) // remove empty
+    .map(r => {
+      const d = new Date(r.day)
 
-    if (!trendMap[day]) trendMap[day] = 0
+      if (isNaN(d.getTime())) {
+        console.warn("Invalid date from backend:", r.day)
+        return null
+      }
 
-    trendMap[day] += Math.abs(s.risk_score)
-  })
-
-  const riskTrend =
-    Object.keys(trendMap).map(d => ({
-      day: d,
-      risk: Number(trendMap[d].toFixed(1))
-    }))
-
-  // ⚠️ MOCK DATA (kept intentionally)
-  const loginDist =
-    generateLoginDistribution(selectedUser, sessionsMock)
-
-  const dataAccess =
-    generateUserDataAccess(selectedUser, eventsMock)
-
-  const compliance =
-    generateBehaviourCompliance(
-      selectedUser,
-      sessionsMock,
-      eventsMock
-    )
-
-  const featureImportance =
-    user ? generateFeatureImportance(user) : []
-
-  const radar =
-    user ? generateRadarProfile(user, eventsMock) : []
+      return {
+        day: d.toISOString().split("T")[0], // ISO format
+        risk: r.risk
+      }
+    })
+    .filter(Boolean)
 
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
@@ -104,8 +95,9 @@ function Intelligence() {
 
       </div>
 
-
-      {/* ✅ REAL RISK TREND */}
+      {/* ---------------------------- */}
+      {/* ✅ RISK TREND */}
+      {/* ---------------------------- */}
       <div className="bg-white p-6 rounded-2xl shadow mb-8">
         <h2 className="font-semibold mb-2">
           Behaviour Risk Trend
@@ -113,44 +105,37 @@ function Intelligence() {
         <UserRiskTrendChart data={riskTrend} />
       </div>
 
-
-      {/* ⚠️ MOCK LOGIN + ACCESS */}
+      {/* ---------------------------- */}
+      {/* ✅ LOGIN + DATA ACCESS */}
+      {/* ---------------------------- */}
       <div className="grid grid-cols-2 gap-8 mb-8">
 
         <div className="bg-white p-6 rounded-2xl shadow">
           <h2 className="font-semibold mb-2">
             Login Behaviour Pattern
           </h2>
-          <div className="text-xs text-orange-400 mb-2">
-            Using mock data
-          </div>
-          <LoginDistributionChart data={loginDist} />
+          <LoginDistributionChart data={data.login_deviation} />
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow">
           <h2 className="font-semibold mb-2">
             Data Access Behaviour
           </h2>
-          <div className="text-xs text-orange-400 mb-2">
-            Using mock data
-          </div>
-          <DataAccessChart data={dataAccess} />
+          <DataAccessChart data={data.data_access} />
         </div>
 
       </div>
 
-
-      {/* ⚠️ MOCK COMPLIANCE + FEATURE */}
+      {/* ---------------------------- */}
+      {/* ✅ COMPLIANCE + FEATURE */}
+      {/* ---------------------------- */}
       <div className="grid grid-cols-2 gap-8 mb-8">
 
         <div className="bg-white p-6 rounded-2xl shadow">
           <h2 className="font-semibold mb-2">
             Behaviour Compliance
           </h2>
-          <div className="text-xs text-orange-400 mb-2">
-            Using mock data
-          </div>
-          <BehaviourComplianceBars data={compliance} />
+          <BehaviourComplianceBars data={data.compliance} />
         </div>
 
         <div className="bg-white p-6 rounded-2xl shadow">
@@ -159,11 +144,7 @@ function Intelligence() {
             Risk Contribution Factors
           </h2>
 
-          <div className="text-xs text-orange-400 mb-3">
-            Using mock data
-          </div>
-
-          {featureImportance.map(f => (
+          {data.feature_importance.map(f => (
 
             <div key={f.feature} className="mb-3">
 
@@ -187,16 +168,14 @@ function Intelligence() {
 
       </div>
 
-
-      {/* ⚠️ MOCK RADAR */}
+      {/* ---------------------------- */}
+      {/* ✅ RADAR */}
+      {/* ---------------------------- */}
       <div className="bg-white p-6 rounded-2xl shadow">
         <h2 className="font-semibold mb-2">
           Behaviour Fingerprint
         </h2>
-        <div className="text-xs text-orange-400 mb-2">
-          Using mock data
-        </div>
-        <RadarBehaviourChart data={radar} />
+        <RadarBehaviourChart data={data.radar_profile} />
       </div>
 
     </div>

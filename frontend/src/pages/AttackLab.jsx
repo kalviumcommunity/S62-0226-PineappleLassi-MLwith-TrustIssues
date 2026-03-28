@@ -8,7 +8,11 @@ function AttackLab() {
   const [attackType, setAttackType] = useState("data_exfiltration")
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
 
+  // ----------------------------
+  // LOAD USERS
+  // ----------------------------
   useEffect(() => {
     fetchUsers().then(data => {
       setUsers(data)
@@ -16,16 +20,54 @@ function AttackLab() {
     })
   }, [])
 
+  // ----------------------------
+  // SIMULATE ATTACK
+  // ----------------------------
   const handleSimulate = async () => {
+
+    if (!selectedUser) return
 
     setLoading(true)
     setResult(null)
+    setError(null)
 
-    const res = await injectAttack(selectedUser, attackType)
+    try {
+      const res = await injectAttack(selectedUser, attackType)
 
-    setResult(res)
+      if (!res) {
+        setError("Simulation failed")
+      } else {
+        setResult(res)
+      }
+
+    } catch (err) {
+      console.error(err)
+      setError("Something went wrong")
+    }
+
     setLoading(false)
   }
+
+  // ----------------------------
+  // SAFE DATA EXTRACTION
+  // ----------------------------
+  const riskScore =
+    result?.risk_score != null
+      ? (Math.abs(result.risk_score) * 100).toFixed(1)
+      : "N/A"
+
+  const riskLevel =
+    result?.risk_level || "Unknown"
+
+  const confidence =
+    result?.confidence != null
+      ? `${result.confidence}%`
+      : "N/A"
+
+  const reasons =
+    Array.isArray(result?.reasons)
+      ? result.reasons
+      : []
 
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
@@ -71,14 +113,25 @@ function AttackLab() {
         <button
           onClick={handleSimulate}
           disabled={loading}
-          className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600"
+          className="w-full bg-red-500 text-white py-3 rounded-xl font-semibold hover:bg-red-600 disabled:opacity-50"
         >
           {loading ? "Simulating..." : "Launch Attack Simulation"}
         </button>
 
       </div>
 
+      {/* ---------------------------- */}
+      {/* ERROR */}
+      {/* ---------------------------- */}
+      {error && (
+        <div className="mt-6 text-red-500">
+          {error}
+        </div>
+      )}
+
+      {/* ---------------------------- */}
       {/* RESULT PANEL */}
+      {/* ---------------------------- */}
       {result && (
         <div className="mt-8 bg-white p-6 rounded-2xl shadow max-w-xl">
 
@@ -87,29 +140,39 @@ function AttackLab() {
           </h2>
 
           <div className="text-sm mb-2">
-            User: <b>{result.user_id}</b>
+            User: <b>{result.user_id || "Unknown"}</b>
           </div>
 
           <div className="text-sm mb-2">
-            Risk Level: <b>{result.risk_level}</b>
+            Risk Level: <b>{riskLevel}</b>
           </div>
 
           <div className="text-sm mb-2">
-            Risk Score: <b>{(Math.abs(result.risk_score) * 100).toFixed(1)}%</b>
+            Risk Score: <b>{riskScore}%</b>
           </div>
 
           <div className="text-sm mb-2">
-            Confidence: <b>{result.confidence}%</b>
+            Confidence: <b>{confidence}</b>
           </div>
 
           <div className="mt-3">
             <div className="text-sm font-semibold mb-2">Reasons:</div>
 
-            {result.reasons?.map((r, i) => (
-              <div key={i} className="text-xs bg-slate-100 px-2 py-1 rounded mb-1 inline-block mr-2">
-                {r}
+            {reasons.length > 0 ? (
+              reasons.map((r, i) => (
+                <div
+                  key={i}
+                  className="text-xs bg-slate-100 px-2 py-1 rounded mb-1 inline-block mr-2"
+                >
+                  {r}
+                </div>
+              ))
+            ) : (
+              <div className="text-xs text-slate-400">
+                No explanation provided
               </div>
-            ))}
+            )}
+
           </div>
 
         </div>
