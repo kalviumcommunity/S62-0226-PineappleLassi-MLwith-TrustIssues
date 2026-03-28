@@ -1,7 +1,8 @@
-import { Outlet, useLocation } from "react-router-dom"
+import { Outlet, useLocation, useNavigate } from "react-router-dom"
 
 function DashboardLayout() {
   const location = useLocation()
+  const navigate = useNavigate()
 
   const navItems = [
     { name: "Overview", path: "/overview" },
@@ -27,22 +28,21 @@ function DashboardLayout() {
             const active = location.pathname === item.path
 
             return (
-              <a
+              <button
                 key={item.name}
-                href={item.path}
-                className={`text-sm transition-all duration-200 ${
+                onClick={() => navigate(item.path)}
+                className={`text-left text-sm transition ${
                   active
                     ? "text-indigo-400"
                     : "text-slate-400 hover:text-indigo-300"
                 }`}
               >
                 {item.name}
-              </a>
+              </button>
             )
           })}
         </div>
 
-        {/* Bottom status */}
         <div className="mt-auto text-xs text-slate-600">
           SYSTEM ACTIVE
         </div>
@@ -54,13 +54,11 @@ function DashboardLayout() {
         {/* TOP BAR */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-indigo-500/10 bg-[#0a0a0f]">
 
-          {/* SEARCH */}
           <input
             placeholder="Search user / alert / incident..."
             className="bg-[#0f0f1a] border border-indigo-500/20 text-slate-300 px-4 py-2 rounded-lg outline-none w-[420px] placeholder:text-slate-500"
           />
 
-          {/* RIGHT SIDE */}
           <div className="flex items-center gap-6">
 
             <div className="text-sm text-slate-400">
