@@ -1,9 +1,3 @@
-
-import { useNavigate } from "react-router-dom"
-
-function RiskyUsersTable({ data }) {
-  const navigate = useNavigate()
-
 function RiskyUsersTable({ data }) {
 
   return (
@@ -54,18 +48,6 @@ function RiskyUsersTable({ data }) {
             <div className="text-slate-500 text-xs">
               {user.last_anomaly_timestamp || "-"}
             </div>
-
-
-              <td className="px-6 py-4">
-                <button 
-                onClick={() => navigate(`/users/${user.user_id}`)}
-                className="px-3 py-1 text-xs rounded-md bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 hover:bg-indigo-500/20 transition">
-                  Investigate
-                </button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
 
           </div>
         )
