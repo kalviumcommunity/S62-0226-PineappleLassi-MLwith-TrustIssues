@@ -126,6 +126,14 @@ def fetch_risky_users_details():
     # =========================
     # USER LEVEL AGGREGATION
     # =========================
+
+    df["risk_score"] = (
+        df["risk_score"]
+        .astype(float)
+        .mul(100)      # scale
+        .abs()         # remove negatives
+    )
+
     grouped = df.groupby("user_id").agg({
         "session_id": "count",
         "is_anomaly": "sum",
